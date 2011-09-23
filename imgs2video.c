@@ -56,13 +56,13 @@ int compare_mod_dates(const struct dirent **a, const struct dirent **b) {
     if (r != 0) {
         printf("stat for '%s' failed: ret %d, errno %d '%s'\n",
                 (*a)->d_name, r, errno, strerror(errno));
-        assert(0);
+        exit(1);
     }
     r = stat((*b)->d_name, &b_stat);
     if (r != 0) {
         printf("stat for '%s' failed: ret %d, errno %d '%s'\n",
                 (*b)->d_name, r, errno, strerror(errno));
-        assert(0);
+        exit(1);
     }
 
     return a_stat.st_mtime - b_stat.st_mtime;
@@ -107,7 +107,11 @@ int imgs_names_durations(const char *dir, struct img **arg) {
         asprintf(&array[i].filename, "%s/%s", dir, namelist[i]->d_name);
         free(namelist[i]);
         r = stat(array[i].filename, &st);
-        assert(r == 0);
+        if (r != 0) {
+            printf("stat for '%s' failed: ret %d, errno %d '%s'\n",
+                    array[i].filename, r, errno, strerror(errno));
+            exit(1);
+        }
         array[i].ts = st.st_mtime;
         if (i > 0)
             array[i].duration = array[i].ts - array[i-1].ts;
