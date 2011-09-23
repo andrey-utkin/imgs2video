@@ -17,7 +17,7 @@
 #define DEFAULT_QMAX 30
 
 struct img {
-    char filename[50];
+    char *filename;
     time_t ts;
     unsigned int duration;
 };
@@ -104,7 +104,7 @@ int imgs_names_durations(const char *dir, struct img **arg) {
     array = calloc(n, sizeof(struct img));
 
     for (i = 0; i < n; i++) {
-        snprintf(array[i].filename, sizeof(array[i].filename), "%s/%s", dir, namelist[i]->d_name);
+        asprintf(&array[i].filename, "%s/%s", dir, namelist[i]->d_name);
         free(namelist[i]);
         r = stat(array[i].filename, &st);
         assert(r == 0);
