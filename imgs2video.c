@@ -368,6 +368,7 @@ int main(int argc, char **argv) {
     AVFormatContext *oc;
     AVStream *video_st = NULL;
     int i;
+    int n;
 
     av_register_all();
 
@@ -460,18 +461,18 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Could not open '%s'\n", filename);
         exit(1);
     }
-    r = imgs_names_durations(img_dir, &array);
-    assert(r > 0);
+    n = imgs_names_durations(img_dir, &array);
+    assert(n > 0);
 
     av_write_header(oc);
 
     unsigned short percent = 0, prev_percent = 0;
     printf("0%% done");
-    for(i = 0; i < r; i++) {
+    for(i = 0; i < n; i++) {
         if ((i > 0) && (array[i].duration == 0))
             continue; // avoid monotonity problems
         open_image_and_push_video_frame(&array[i], oc);
-        percent = 100 * i / r;
+        percent = 100 * i / n;
         if (percent - prev_percent > 0/*threshold*/) {
             prev_percent = percent;
             printf("\r%d%% done", percent);
