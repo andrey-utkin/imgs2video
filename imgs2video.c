@@ -7,6 +7,7 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include <assert.h>
+#include <errno.h>
 #include <libavformat/avformat.h>
 #include <libswscale/swscale.h>
 
