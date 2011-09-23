@@ -115,7 +115,7 @@ int imgs_names_durations(const char *dir, struct img **arg) {
         array[i].ts = st.st_mtime;
         if (i > 0)
             array[i].duration = array[i].ts - array[i-1].ts;
-        printf("%s %u\n", array[i].filename, array[i].duration);
+        //printf("%s %u\n", array[i].filename, array[i].duration);
     }
     free(namelist);
 
@@ -125,7 +125,7 @@ int imgs_names_durations(const char *dir, struct img **arg) {
 }
 
 /* http://stackoverflow.com/questions/3527584/ffmpeg-jpeg-file-to-avframe */
-AVFrame* open_image_and_push_video_frame(struct img *img, AVFormatContext *video_output) {
+int open_image_and_push_video_frame(struct img *img, AVFormatContext *video_output) {
     AVFormatContext *pFormatCtx;
     AVCodecContext *pCodecCtx;
     AVCodec *pCodec;
@@ -136,7 +136,7 @@ AVFrame* open_image_and_push_video_frame(struct img *img, AVFormatContext *video
 
     if(av_open_input_file(&pFormatCtx, img->filename, NULL, 0, NULL)) {
         printf("Can't open image file '%s'\n", img->filename);
-        return NULL;
+        goto fail_open_file;
     }
     //dump_format(pFormatCtx, 0, img->filename, 0);
     pCodecCtx = pFormatCtx->streams[0]->codec;
@@ -145,13 +145,13 @@ AVFrame* open_image_and_push_video_frame(struct img *img, AVFormatContext *video
     pCodec = avcodec_find_decoder(pCodecCtx->codec_id);
     if (!pCodec) {
         printf("Codec not found\n");
-        return NULL;
+        goto fail_find_decoder;
     }
 
     // Open codec
     if(avcodec_open(pCodecCtx, pCodec)<0) {
         printf("Could not open codec\n");
-        return NULL;
+        goto fail_avcodec_open;
     }
 
     pCodecCtx->width = global_width;
@@ -161,14 +161,20 @@ AVFrame* open_image_and_push_video_frame(struct img *img, AVFormatContext *video
     pFrame = avcodec_alloc_frame();
     if (!pFrame) {
         printf("Can't allocate memory for AVFrame\n");
-        return NULL;
+        goto fail_alloc_frame;
     }
 
     r = av_read_frame(pFormatCtx, &packet);
-    assert(r >= 0);
+    if (r < 0) {
+        printf("Failed to read frame\n");
+        goto fail_read_frame;
+    }
 
     r = avcodec_decode_video2(pCodecCtx, pFrame, &frameFinished, &packet);
-    assert(r > 0);
+    if (r <= 0) {
+        printf("Failed to decode image\n");
+        goto fail_decode;
+    }
     pFrame->quality = 1;
     pFrame->pts = AV_NOPTS_VALUE;
 
@@ -178,7 +184,19 @@ AVFrame* open_image_and_push_video_frame(struct img *img, AVFormatContext *video
     avcodec_close(pCodecCtx);
     av_close_input_file(pFormatCtx);
 
-    return pFrame;
+    return 0;
+fail_decode:
+    av_free_packet(&packet);
+fail_read_frame:
+    av_free(pFrame);
+fail_alloc_frame:
+    avcodec_close(pCodecCtx);
+fail_avcodec_open:
+    ;
+fail_find_decoder:
+    av_close_input_file(pFormatCtx);
+fail_open_file:
+    return 1;
 }
 
 char *get_some_pic(const char *dirname) {
@@ -471,7 +489,10 @@ int main(int argc, char **argv) {
     for(i = 0; i < n; i++) {
         if ((i > 0) && (array[i].duration == 0))
             continue; // avoid monotonity problems
-        open_image_and_push_video_frame(&array[i], oc);
+        r = open_image_and_push_video_frame(&array[i], oc);
+        if (r) {
+            printf("Processing file %s/%s failed, throw away and proceed\n", img_dir, array[i].filename);
+        }
         percent = 100 * i / n;
         if (percent - prev_percent > 0/*threshold*/) {
             prev_percent = percent;
