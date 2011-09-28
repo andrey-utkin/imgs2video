@@ -449,6 +449,7 @@ static void write_video_frame(AVFormatContext *oc, AVFrame *picture, unsigned in
         av_init_packet(&pkt);
 
         pkt.pts = picture->pts;
+        pkt.dts = pkt.pts;
         //printf("pkt.pts %"PRId64"\n", pkt.pts);
         if(c->coded_frame->key_frame)
             pkt.flags |= AV_PKT_FLAG_KEY;
