@@ -9,12 +9,15 @@
 #include <assert.h>
 #include <errno.h>
 #include <libavformat/avformat.h>
-#include <libswscale/swscale.h>
 
-#define TIMEBASE_DEN ((1 << 16) - 1) // maximum granularity available for mpeg4
+#define FRAME_RATE 25 // TODO app parameter
+#define FMT_TIMEBASE_DEN 1000
+#define ENC_TIMEBASE_DEN FRAME_RATE
+#define PTS_STEP ( FMT_TIMEBASE_DEN / FRAME_RATE )
 #define DEFAULT_SPEEDUP_COEF 240
 #define DEFAULT_QMIN 2
 #define DEFAULT_QMAX 30
+#define DEFAULT_CODEC CODEC_ID_FLV1
 
 struct img {
     char *filename;
@@ -26,6 +29,7 @@ struct img {
 unsigned int speedup_coef = DEFAULT_SPEEDUP_COEF;
 unsigned int global_qmin = DEFAULT_QMIN;
 unsigned int global_qmax = DEFAULT_QMAX;
+enum CodecID codec_id = DEFAULT_CODEC;
 
 uint8_t *video_outbuf;
 int video_outbuf_size;
@@ -66,6 +70,51 @@ int compare_mod_dates(const struct dirent **a, const struct dirent **b) {
     }
 
     return a_stat.st_mtime - b_stat.st_mtime;
+}
+
+int transform_frames_chain(struct img *array, unsigned int n, struct img **arg) {
+    // TODO better algo?
+    unsigned idx(struct img *frames, unsigned n_frames, unsigned timestamp) {
+        unsigned best_i = 0;
+        int i;
+        for (i = 0; i < n_frames; i++) {
+            if (FFABS((int64_t)frames[i].ts - (int64_t)timestamp) <
+                    FFABS((int64_t)frames[best_i].ts - (int64_t)timestamp) )
+                best_i = i;
+        }
+        return best_i;
+    }
+    unsigned int realtime_duration = array[n-1].ts - array[0].ts;
+    unsigned int n_frames = realtime_duration * FRAME_RATE / speedup_coef;
+    struct img *frames = calloc(n_frames, sizeof(struct img));
+    int i, j;
+
+    for (i = 0; i < n_frames; i++) {
+        frames[i].ts = i * PTS_STEP;
+        //printf("frame[%d].ts := %d\n", i, i * PTS_STEP);
+        frames[i].duration = PTS_STEP;
+    }
+
+    frames[0].filename = array[0].filename;
+    frames[n_frames-1].filename = array[n-1].filename;
+
+    for (i = 0; i < n-1; i++) {
+        /* for each image:
+         * set the stop point at the cell in frames[] which is for next image
+         * fill all frames[] from which is for it, up to which is for next
+         */
+        unsigned entry_pos = idx(frames, n_frames, (array[i].ts-array[0].ts) * FMT_TIMEBASE_DEN / speedup_coef);
+        unsigned next_entry_pos = idx(frames, n_frames, (array[i+1].ts-array[0].ts) * FMT_TIMEBASE_DEN / speedup_coef);
+        //printf("img %d, ts %"PRId64", position %d, of next is %d\n", i, (array[i].ts-array[0].ts) * FMT_TIMEBASE_DEN / speedup_coef, entry_pos, next_entry_pos);
+        for (j = entry_pos; j < next_entry_pos; j++)
+            frames[j].filename = array[i].filename;
+    }
+
+    for (i = 0; i < n_frames; i++)
+        assert(frames[i].filename);
+
+    *arg = frames;
+    return n_frames;
 }
 
 int imgs_names_durations(const char *dir, struct img **arg) {
@@ -118,9 +167,9 @@ int imgs_names_durations(const char *dir, struct img **arg) {
         //printf("%s %u\n", array[i].filename, array[i].duration);
     }
     free(namelist);
-
-
-    *arg = array;
+    printf("%d images\n", n);
+    n = transform_frames_chain(array, n, arg);
+    printf("%d frames\n", n);
     return n;
 }
 
@@ -176,8 +225,9 @@ int open_image_and_push_video_frame(struct img *img, AVFormatContext *video_outp
         goto fail_decode;
     }
     pFrame->quality = 1;
-    pFrame->pts = AV_NOPTS_VALUE;
+    pFrame->pts = img->ts;
 
+    //printf("given frame ts: %u duration: %d\n", img->ts, img->duration);
     write_video_frame(video_output, pFrame, img->duration);
     av_free(pFrame);
     av_free_packet(&packet);
@@ -280,12 +330,20 @@ static AVStream *add_video_stream(AVFormatContext *oc, enum CodecID codec_id)
         exit(1);
     }
 
+    st->time_base.den = FMT_TIMEBASE_DEN;
+    st->time_base.num = 1;
+
     c = st->codec;
     c->codec_id = codec_id;
     c->codec_type = AVMEDIA_TYPE_VIDEO;
 
+    st->r_frame_rate.den = 1;
+    st->r_frame_rate.num = FRAME_RATE;
+    st->avg_frame_rate.den = 1;
+    st->avg_frame_rate.num = FRAME_RATE;
+
     /* put sample parameters */
-    c->bit_rate = 4000000;
+    c->bit_rate = 500000; // TODO app parameter
     /* resolution must be a multiple of two */
     c->width = global_width;
     c->height = global_height;
@@ -293,7 +351,9 @@ static AVStream *add_video_stream(AVFormatContext *oc, enum CodecID codec_id)
        of which frame timestamps are represented. for fixed-fps content,
        timebase should be 1/framerate and timestamp increments should be
        identically 1. */
-    c->time_base.den = TIMEBASE_DEN;
+
+    c->time_base.den = ENC_TIMEBASE_DEN;
+
     c->time_base.num = 1;
     c->gop_size = 12; /* emit one intra frame every twelve frames at most */
     c->pix_fmt = PIX_FMT_YUV420P;
@@ -313,6 +373,36 @@ static AVStream *add_video_stream(AVFormatContext *oc, enum CodecID codec_id)
 
     c->qmin = global_qmin;
     c->qmax = global_qmax;
+
+    c->noise_reduction = 50;
+    c->quantizer_noise_shaping = 50;
+
+    if (c->codec_id == CODEC_ID_H264) {
+        /* we must override 'broken defaults'.
+         * Exactly this set is not considered very intelligent.
+         * Just what has been found.
+         * Feel free to tweak.
+         */
+        c->bit_rate = 500*1000;
+        c->bit_rate_tolerance = c->bit_rate;
+        c->rc_max_rate = 0;
+        c->rc_buffer_size = 0;
+        c->gop_size = 40;
+        c->max_b_frames = 3;
+        c->b_frame_strategy = 1;
+        c->coder_type = 1;
+        c->me_cmp = 1;
+        c->me_range = 16;
+        c->scenechange_threshold = 100500;
+        c->flags |= CODEC_FLAG_LOOP_FILTER;
+        c->me_method = ME_HEX;
+        c->me_subpel_quality = 9;
+        c->i_quant_factor = 0.71;
+        c->qcompress = 0.6;
+        c->max_qdiff = 4;
+        c->directpred = 1;
+        c->flags2 |= CODEC_FLAG2_FASTPSKIP;
+    }
 
     return st;
 }
@@ -347,6 +437,9 @@ static void write_video_frame(AVFormatContext *oc, AVFrame *picture, unsigned in
     AVStream *st = oc->streams[0];
     int out_size, ret;
     AVCodecContext *c = st->codec;
+
+    //printf("picture.pts %"PRId64"\n", picture->pts);
+
     /* encode the image */
     out_size = avcodec_encode_video(c, video_outbuf, video_outbuf_size, picture);
 
@@ -355,8 +448,7 @@ static void write_video_frame(AVFormatContext *oc, AVFrame *picture, unsigned in
         AVPacket pkt;
         av_init_packet(&pkt);
 
-        pkt.pts = pts + duration * TIMEBASE_DEN / speedup_coef;
-        pts = pkt.pts;
+        pkt.pts = picture->pts;
         //printf("pkt.pts %"PRId64"\n", pkt.pts);
         if(c->coded_frame->key_frame)
             pkt.flags |= AV_PKT_FLAG_KEY;
@@ -368,8 +460,9 @@ static void write_video_frame(AVFormatContext *oc, AVFrame *picture, unsigned in
         ret = av_interleaved_write_frame(oc, &pkt);
         av_free_packet(&pkt);
     } else {
+        //printf("out_size=%d\n", out_size);
         ret = 0;
-        printf("should this ever happen?\n");
+        //printf("should this ever happen?\n");
     }
     if (ret != 0) {
         fprintf(stderr, "Error while writing video frame\n");
@@ -463,6 +556,8 @@ int main(int argc, char **argv) {
         printf("guessed format doesnt assume video?\n");
         exit(1);
     }
+
+    fmt->video_codec = codec_id;
     video_st = add_video_stream(oc, fmt->video_codec);
 
     /* set the output parameters (must be done even if no
@@ -487,7 +582,8 @@ int main(int argc, char **argv) {
     unsigned short percent = 0, prev_percent = 0;
     printf("0%% done");
     for(i = 0; i < n; i++) {
-        if ((i > 0) && (array[i].duration == 0))
+        printf("processing frame %d\n", i);
+        if ((i > 0) && (array[i].ts == array[i-1].ts))
             continue; // avoid monotonity problems
         r = open_image_and_push_video_frame(&array[i], oc);
         if (r) {
