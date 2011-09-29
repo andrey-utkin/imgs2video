@@ -17,7 +17,7 @@
 #define DEFAULT_SPEEDUP_COEF 240
 #define DEFAULT_QMIN 2
 #define DEFAULT_QMAX 30
-#define DEFAULT_CODEC CODEC_ID_FLV1
+#define DEFAULT_CODEC CODEC_ID_H264
 
 struct img {
     char *filename;
@@ -33,7 +33,7 @@ enum CodecID codec_id = DEFAULT_CODEC;
 
 uint8_t *video_outbuf;
 int video_outbuf_size;
-int64_t pts = 0;
+unsigned int frames_out = 0;
 unsigned int global_width;
 unsigned int global_height;
 
@@ -227,7 +227,7 @@ int open_image_and_push_video_frame(struct img *img, AVFormatContext *video_outp
     pFrame->quality = 1;
     pFrame->pts = img->ts;
 
-    //printf("given frame ts: %u duration: %d\n", img->ts, img->duration);
+    printf("given frame ts: %u duration: %d\n", img->ts, img->duration);
     write_video_frame(video_output, pFrame, img->duration);
     av_free(pFrame);
     av_free_packet(&packet);
@@ -343,7 +343,7 @@ static AVStream *add_video_stream(AVFormatContext *oc, enum CodecID codec_id)
     st->avg_frame_rate.num = FRAME_RATE;
 
     /* put sample parameters */
-    c->bit_rate = 500000; // TODO app parameter
+    c->bit_rate = 4000000; // TODO app parameter
     /* resolution must be a multiple of two */
     c->width = global_width;
     c->height = global_height;
@@ -371,11 +371,16 @@ static AVStream *add_video_stream(AVFormatContext *oc, enum CodecID codec_id)
     if(oc->oformat->flags & AVFMT_GLOBALHEADER)
         c->flags |= CODEC_FLAG_GLOBAL_HEADER;
 
+    st->sample_aspect_ratio.den = 1;
+    st->sample_aspect_ratio.num = 1;
+    c->sample_aspect_ratio.den = 1;
+    c->sample_aspect_ratio.num = 1;
+
     c->qmin = global_qmin;
     c->qmax = global_qmax;
 
-    c->noise_reduction = 50;
-    c->quantizer_noise_shaping = 50;
+    //c->noise_reduction = 50;
+    //c->quantizer_noise_shaping = 50;
 
     if (c->codec_id == CODEC_ID_H264) {
         /* we must override 'broken defaults'.
@@ -448,9 +453,10 @@ static void write_video_frame(AVFormatContext *oc, AVFrame *picture, unsigned in
         AVPacket pkt;
         av_init_packet(&pkt);
 
-        pkt.pts = picture->pts;
+        pkt.pts = frames_out++ * PTS_STEP;
         pkt.dts = pkt.pts;
-        //printf("pkt.pts %"PRId64"\n", pkt.pts);
+        pkt.duration = PTS_STEP;
+        printf("pkt.pts %"PRId64"\n", pkt.pts);
         if(c->coded_frame->key_frame)
             pkt.flags |= AV_PKT_FLAG_KEY;
         pkt.stream_index= st->index;
@@ -597,7 +603,30 @@ int main(int argc, char **argv) {
             fflush(stdout);
         }
     }
+    while (1) {
+        /* flush buffered remainings */
+        r = avcodec_encode_video(oc->streams[0]->codec, video_outbuf, video_outbuf_size, NULL);
+        if (r <= 0)
+            break;
+        AVPacket pkt;
+        av_init_packet(&pkt);
+        pkt.pts = frames_out++ * PTS_STEP;
+        pkt.dts = pkt.pts;
+        pkt.duration = PTS_STEP;
+        printf("pkt.pts %"PRId64"\n", pkt.pts);
+        if(oc->streams[0]->codec->coded_frame->key_frame)
+            pkt.flags |= AV_PKT_FLAG_KEY;
+        pkt.stream_index= 0;
+        pkt.data= video_outbuf;
+        pkt.size= r;
+
+        /* write the compressed frame in the media file */
+        r = av_interleaved_write_frame(oc, &pkt);
+        assert(r == 0);
+        av_free_packet(&pkt);
+    }
     av_write_trailer(oc);
+    dump_format(oc, 0, filename, 1);
 
     avcodec_close(video_st->codec);
     av_free(video_outbuf);
