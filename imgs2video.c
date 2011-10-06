@@ -9,15 +9,9 @@
 #include <assert.h>
 #include <errno.h>
 #include <libavformat/avformat.h>
+#include "imgs2video_cmdline.h"
 
-#define FRAME_RATE 25 // TODO app parameter
 #define FMT_TIMEBASE_DEN 1000
-#define ENC_TIMEBASE_DEN FRAME_RATE
-#define PTS_STEP ( FMT_TIMEBASE_DEN / FRAME_RATE )
-#define DEFAULT_SPEEDUP_COEF 240
-#define DEFAULT_QMIN 2
-#define DEFAULT_QMAX 30
-#define DEFAULT_CODEC CODEC_ID_H264
 
 struct img {
     char *filename;
@@ -25,15 +19,12 @@ struct img {
     unsigned int duration;
 };
 
-
-unsigned int speedup_coef = DEFAULT_SPEEDUP_COEF;
-unsigned int global_qmin = DEFAULT_QMIN;
-unsigned int global_qmax = DEFAULT_QMAX;
-enum CodecID codec_id = DEFAULT_CODEC;
-
 uint8_t *video_outbuf;
 int video_outbuf_size;
 unsigned int frames_out = 0;
+
+struct args args;
+unsigned int pts_step;
 unsigned int global_width;
 unsigned int global_height;
 
@@ -85,14 +76,14 @@ int transform_frames_chain(struct img *array, unsigned int n, struct img **arg) 
         return best_i;
     }
     unsigned int realtime_duration = array[n-1].ts - array[0].ts;
-    unsigned int n_frames = realtime_duration * FRAME_RATE / speedup_coef;
+    unsigned int n_frames = realtime_duration * args.frame_rate_arg / args.speedup_coef_arg;
     struct img *frames = calloc(n_frames, sizeof(struct img));
     int i, j;
 
     for (i = 0; i < n_frames; i++) {
-        frames[i].ts = i * PTS_STEP;
-        //printf("frame[%d].ts := %d\n", i, i * PTS_STEP);
-        frames[i].duration = PTS_STEP;
+        frames[i].ts = i * pts_step;
+        //printf("frame[%d].ts := %d\n", i, i * pts_step);
+        frames[i].duration = pts_step;
     }
 
     frames[0].filename = array[0].filename;
@@ -103,9 +94,9 @@ int transform_frames_chain(struct img *array, unsigned int n, struct img **arg) 
          * set the stop point at the cell in frames[] which is for next image
          * fill all frames[] from which is for it, up to which is for next
          */
-        unsigned entry_pos = idx(frames, n_frames, (array[i].ts-array[0].ts) * FMT_TIMEBASE_DEN / speedup_coef);
-        unsigned next_entry_pos = idx(frames, n_frames, (array[i+1].ts-array[0].ts) * FMT_TIMEBASE_DEN / speedup_coef);
-        //printf("img %d, ts %"PRId64", position %d, of next is %d\n", i, (array[i].ts-array[0].ts) * FMT_TIMEBASE_DEN / speedup_coef, entry_pos, next_entry_pos);
+        unsigned entry_pos = idx(frames, n_frames, (array[i].ts-array[0].ts) * FMT_TIMEBASE_DEN / args.speedup_coef_arg);
+        unsigned next_entry_pos = idx(frames, n_frames, (array[i+1].ts-array[0].ts) * FMT_TIMEBASE_DEN / args.speedup_coef_arg);
+        //printf("img %d, ts %"PRId64", position %d, of next is %d\n", i, (array[i].ts-array[0].ts) * FMT_TIMEBASE_DEN / args.speedup_coef_arg, entry_pos, next_entry_pos);
         for (j = entry_pos; j < next_entry_pos; j++)
             frames[j].filename = array[i].filename;
     }
@@ -338,9 +329,9 @@ static AVStream *add_video_stream(AVFormatContext *oc, enum CodecID codec_id)
     c->codec_type = AVMEDIA_TYPE_VIDEO;
 
     st->r_frame_rate.den = 1;
-    st->r_frame_rate.num = FRAME_RATE;
+    st->r_frame_rate.num = args.frame_rate_arg;
     st->avg_frame_rate.den = 1;
-    st->avg_frame_rate.num = FRAME_RATE;
+    st->avg_frame_rate.num = args.frame_rate_arg;
 
     /* put sample parameters */
     c->bit_rate = 4000000; // TODO app parameter
@@ -352,7 +343,7 @@ static AVStream *add_video_stream(AVFormatContext *oc, enum CodecID codec_id)
        timebase should be 1/framerate and timestamp increments should be
        identically 1. */
 
-    c->time_base.den = ENC_TIMEBASE_DEN;
+    c->time_base.den = args.frame_rate_arg;
 
     c->time_base.num = 1;
     c->gop_size = 12; /* emit one intra frame every twelve frames at most */
@@ -375,9 +366,6 @@ static AVStream *add_video_stream(AVFormatContext *oc, enum CodecID codec_id)
     st->sample_aspect_ratio.num = 1;
     c->sample_aspect_ratio.den = 1;
     c->sample_aspect_ratio.num = 1;
-
-    c->qmin = global_qmin;
-    c->qmax = global_qmax;
 
     //c->noise_reduction = 50;
     //c->quantizer_noise_shaping = 50;
@@ -407,6 +395,9 @@ static AVStream *add_video_stream(AVFormatContext *oc, enum CodecID codec_id)
         c->max_qdiff = 4;
         c->flags2 |= CODEC_FLAG2_FASTPSKIP;
     }
+
+    c->qmin = args.quantizer_arg;
+    c->qmax = args.quantizer_arg;
 
     return st;
 }
@@ -452,9 +443,9 @@ static void write_video_frame(AVFormatContext *oc, AVFrame *picture, unsigned in
         AVPacket pkt;
         av_init_packet(&pkt);
 
-        pkt.pts = frames_out++ * PTS_STEP;
+        pkt.pts = frames_out++ * pts_step;
         pkt.dts = pkt.pts;
-        pkt.duration = PTS_STEP;
+        pkt.duration = pts_step;
         printf("pkt.pts %"PRId64"\n", pkt.pts);
         if(c->coded_frame->key_frame)
             pkt.flags |= AV_PKT_FLAG_KEY;
@@ -479,8 +470,6 @@ static void write_video_frame(AVFormatContext *oc, AVFrame *picture, unsigned in
 int main(int argc, char **argv) {
     int r;
     struct img *array;
-    const char *filename, *img_dir;
-    char *tmp;
     AVOutputFormat *fmt;
     AVFormatContext *oc;
     AVStream *video_st = NULL;
@@ -489,55 +478,18 @@ int main(int argc, char **argv) {
 
     av_register_all();
 
-    if (argc < 2) {
-        printf("usage: %s <output_file> [img_dir=./] [speedup_coef=240] [qmin=2] [qmax=30]\n"
-               "Make video from series of pics, with linear time transform.\n"
-               "The output format is automatically guessed according to the file extension.\n"
-               "qmin, qmax (both unsigned int) are libavcodec encoding quantization params.\n"
-               "Default qmin=2, qmax=30. For perfect and incredibly heavy video, qmin=1,qmax=1\n"
-               "By Andrey Utkin <andrey.krieger.utkin@gmail.com>\n"
-               "\n", argv[0]);
-        exit(1);
-    }
-    filename = argv[1];
-    img_dir = (argc >= 3) ? argv[2] : ".";
-    if (argc > 3) {
-        r = atoi(argv[3]);
-        if (r > 0)
-            speedup_coef = r;
-        else {
-            fprintf(stderr, "speedup_coef invalid\n");
-            exit(1);
-        }
-    }
-    if (argc > 4) {
-        r = atoi(argv[4]);
-        if (r > 0)
-            global_qmin = r;
-        else {
-            fprintf(stderr, "qmin invalid\n");
-            exit(1);
-        }
-    }
-    if (argc > 5) {
-        r = atoi(argv[5]);
-        if (r > 0)
-            global_qmax = r;
-        else {
-            fprintf(stderr, "qmax invalid\n");
-            exit(1);
-        }
-    }
-    printf("gonna work with output_file='%s', img_dir='%s', speedup_coef=%u, qmin=%u, qmax=%u\n",
-            filename, img_dir, speedup_coef, global_qmin, global_qmax);
+    r = cmdline_parser(argc, argv, &args);
 
-    tmp = get_some_pic(img_dir);
+    char *tmp;
+    tmp = get_some_pic(args.images_dir_arg);
     init_sizes(tmp);
     free(tmp);
 
+    pts_step = FMT_TIMEBASE_DEN / args.frame_rate_arg;
+
     /* auto detect the output format from the name. default is
        mpeg. */
-    fmt = av_guess_format(NULL, filename, NULL);
+    fmt = av_guess_format(NULL, args.output_file_arg, NULL);
     if (!fmt) {
         printf("Could not deduce output format from file extension: using MPEG.\n");
         fmt = av_guess_format("mpeg", NULL, NULL);
@@ -554,7 +506,7 @@ int main(int argc, char **argv) {
         exit(1);
     }
     oc->oformat = fmt;
-    snprintf(oc->filename, sizeof(oc->filename), "%s", filename);
+    snprintf(oc->filename, sizeof(oc->filename), "%s", args.output_file_arg);
 
     /* add the audio and video streams using the default format codecs
        and initialize the codecs */
@@ -563,16 +515,16 @@ int main(int argc, char **argv) {
         exit(1);
     }
 
-    fmt->video_codec = codec_id;
+    fmt->video_codec = (!strcasecmp(args.vcodec_arg, "h264") ? CODEC_ID_H264 : CODEC_ID_FLV1);
     video_st = add_video_stream(oc, fmt->video_codec);
-    av_dump_format(oc, 0, filename, 1);
+    av_dump_format(oc, 0, args.output_file_arg, 1);
 
     open_video(oc, video_st);
-    if (avio_open(&oc->pb, filename, URL_WRONLY) < 0) {
-        fprintf(stderr, "Could not open '%s'\n", filename);
+    if (avio_open(&oc->pb, args.output_file_arg, URL_WRONLY) < 0) {
+        fprintf(stderr, "Could not open '%s'\n", args.output_file_arg);
         exit(1);
     }
-    n = imgs_names_durations(img_dir, &array);
+    n = imgs_names_durations(args.images_dir_arg, &array);
     assert(n > 0);
 
     avformat_write_header(oc, NULL);
@@ -585,7 +537,7 @@ int main(int argc, char **argv) {
             continue; // avoid monotonity problems
         r = open_image_and_push_video_frame(&array[i], oc);
         if (r) {
-            printf("Processing file %s/%s failed, throw away and proceed\n", img_dir, array[i].filename);
+            printf("Processing file %s/%s failed, throw away and proceed\n", args.images_dir_arg, array[i].filename);
         }
         percent = 100 * i / n;
         if (percent - prev_percent > 0/*threshold*/) {
@@ -601,9 +553,9 @@ int main(int argc, char **argv) {
             break;
         AVPacket pkt;
         av_init_packet(&pkt);
-        pkt.pts = frames_out++ * PTS_STEP;
+        pkt.pts = frames_out++ * pts_step;
         pkt.dts = pkt.pts;
-        pkt.duration = PTS_STEP;
+        pkt.duration = pts_step;
         printf("pkt.pts %"PRId64"\n", pkt.pts);
         if(oc->streams[0]->codec->coded_frame->key_frame)
             pkt.flags |= AV_PKT_FLAG_KEY;
@@ -617,7 +569,7 @@ int main(int argc, char **argv) {
         av_free_packet(&pkt);
     }
     av_write_trailer(oc);
-    av_dump_format(oc, 0, filename, 1);
+    av_dump_format(oc, 0, args.output_file_arg, 1);
 
     avcodec_close(video_st->codec);
     av_free(video_outbuf);
