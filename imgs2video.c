@@ -175,7 +175,7 @@ int imgs_names_durations(const char *dir, struct img **arg) {
 
 /* http://stackoverflow.com/questions/3527584/ffmpeg-jpeg-file-to-avframe */
 int open_image_and_push_video_frame(struct img *img, AVFormatContext *video_output) {
-    AVFormatContext *pFormatCtx;
+    AVFormatContext *pFormatCtx = NULL;
     AVCodecContext *pCodecCtx;
     AVCodec *pCodec;
     AVFrame *pFrame;
@@ -183,7 +183,7 @@ int open_image_and_push_video_frame(struct img *img, AVFormatContext *video_outp
     int r;
     int frameFinished;
 
-    if(av_open_input_file(&pFormatCtx, img->filename, NULL, 0, NULL)) {
+    if(avformat_open_input(&pFormatCtx, img->filename, NULL, 0)) {
         printf("Can't open image file '%s'\n", img->filename);
         goto fail_open_file;
     }
@@ -198,7 +198,7 @@ int open_image_and_push_video_frame(struct img *img, AVFormatContext *video_outp
     }
 
     // Open codec
-    if(avcodec_open(pCodecCtx, pCodec)<0) {
+    if(avcodec_open2(pCodecCtx, pCodec, NULL)<0) {
         printf("Could not open codec\n");
         goto fail_avcodec_open;
     }
@@ -227,7 +227,7 @@ int open_image_and_push_video_frame(struct img *img, AVFormatContext *video_outp
     pFrame->quality = 1;
     pFrame->pts = img->ts;
 
-    printf("given frame ts: %u duration: %d\n", img->ts, img->duration);
+    printf("given frame ts: %u duration: %d\n", (unsigned)img->ts, img->duration);
     write_video_frame(video_output, pFrame, img->duration);
     av_free(pFrame);
     av_free_packet(&packet);
@@ -269,7 +269,7 @@ char *get_some_pic(const char *dirname) {
 }
 
 void init_sizes(const char* imageFileName) {
-    AVFormatContext *pFormatCtx;
+    AVFormatContext *pFormatCtx = NULL;
     AVCodecContext *pCodecCtx;
     AVCodec *pCodec;
     AVFrame *pFrame;
@@ -277,7 +277,7 @@ void init_sizes(const char* imageFileName) {
     int r;
     int frameFinished;
 
-    if(av_open_input_file(&pFormatCtx, imageFileName, NULL, 0, NULL)) {
+    if(avformat_open_input(&pFormatCtx, imageFileName, NULL, 0)) {
         printf("Can't open image file '%s'\n", imageFileName);
         exit(1);
     }
@@ -292,7 +292,7 @@ void init_sizes(const char* imageFileName) {
     }
 
     // Open codec
-    if(avcodec_open(pCodecCtx, pCodec)<0) {
+    if(avcodec_open2(pCodecCtx, pCodec, NULL)<0) {
         printf("Could not open codec\n");
         exit(1);
     }
@@ -405,7 +405,6 @@ static AVStream *add_video_stream(AVFormatContext *oc, enum CodecID codec_id)
         c->i_quant_factor = 0.71;
         c->qcompress = 0.6;
         c->max_qdiff = 4;
-        c->directpred = 1;
         c->flags2 |= CODEC_FLAG2_FASTPSKIP;
     }
 
@@ -427,7 +426,7 @@ static void open_video(AVFormatContext *oc, AVStream *st)
     }
 
     /* open the codec */
-    if (avcodec_open(c, codec) < 0) {
+    if (avcodec_open2(c, codec, NULL) < 0) {
         fprintf(stderr, "could not open codec\n");
         exit(1);
     }
@@ -566,25 +565,17 @@ int main(int argc, char **argv) {
 
     fmt->video_codec = codec_id;
     video_st = add_video_stream(oc, fmt->video_codec);
-
-    /* set the output parameters (must be done even if no
-       parameters). */
-    if (av_set_parameters(oc, NULL) < 0) {
-        fprintf(stderr, "Invalid output format parameters\n");
-        exit(1);
-    }
-
-    dump_format(oc, 0, filename, 1);
+    av_dump_format(oc, 0, filename, 1);
 
     open_video(oc, video_st);
-    if (url_fopen(&oc->pb, filename, URL_WRONLY) < 0) {
+    if (avio_open(&oc->pb, filename, URL_WRONLY) < 0) {
         fprintf(stderr, "Could not open '%s'\n", filename);
         exit(1);
     }
     n = imgs_names_durations(img_dir, &array);
     assert(n > 0);
 
-    av_write_header(oc);
+    avformat_write_header(oc, NULL);
 
     unsigned short percent = 0, prev_percent = 0;
     printf("0%% done");
@@ -626,13 +617,13 @@ int main(int argc, char **argv) {
         av_free_packet(&pkt);
     }
     av_write_trailer(oc);
-    dump_format(oc, 0, filename, 1);
+    av_dump_format(oc, 0, filename, 1);
 
     avcodec_close(video_st->codec);
     av_free(video_outbuf);
     av_freep(&oc->streams[0]->codec);
     av_freep(&oc->streams[0]);
-    url_fclose(oc->pb);
+    avio_close(oc->pb);
     av_free(oc);
 
     return 0;
