@@ -217,6 +217,7 @@ int open_image_and_push_video_frame(struct img *img, AVFormatContext *video_outp
     }
     pFrame->quality = 1;
     pFrame->pts = img->ts;
+    pFrame->pict_type = 0; /* let codec choose */
 
     printf("given frame ts: %u duration: %d\n", (unsigned)img->ts, img->duration);
     write_video_frame(video_output, pFrame, img->duration);
