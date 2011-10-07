@@ -334,8 +334,6 @@ static AVStream *add_video_stream(AVFormatContext *oc, enum CodecID codec_id)
     st->avg_frame_rate.den = 1;
     st->avg_frame_rate.num = args.frame_rate_arg;
 
-    /* put sample parameters */
-    c->bit_rate = 4000000; // TODO app parameter
     /* resolution must be a multiple of two */
     c->width = global_width;
     c->height = global_height;
@@ -345,21 +343,9 @@ static AVStream *add_video_stream(AVFormatContext *oc, enum CodecID codec_id)
        identically 1. */
 
     c->time_base.den = args.frame_rate_arg;
-
     c->time_base.num = 1;
-    c->gop_size = 12; /* emit one intra frame every twelve frames at most */
     c->pix_fmt = PIX_FMT_YUV420P;
-    if (c->codec_id == CODEC_ID_MPEG2VIDEO) {
-        /* just for testing, we also add B frames */
-        c->max_b_frames = 2;
-    }
-    if (c->codec_id == CODEC_ID_MPEG1VIDEO){
-        /* Needed to avoid using macroblocks in which some coeffs overflow.
-           This does not happen with normal video, it just happens here as
-           the motion of the chroma plane does not match the luma plane. */
-        c->mb_decision=2;
-    }
-    // some formats want stream headers to be separate
+
     if(oc->oformat->flags & AVFMT_GLOBALHEADER)
         c->flags |= CODEC_FLAG_GLOBAL_HEADER;
 
@@ -367,35 +353,6 @@ static AVStream *add_video_stream(AVFormatContext *oc, enum CodecID codec_id)
     st->sample_aspect_ratio.num = 1;
     c->sample_aspect_ratio.den = 1;
     c->sample_aspect_ratio.num = 1;
-
-    //c->noise_reduction = 50;
-    //c->quantizer_noise_shaping = 50;
-
-    if (c->codec_id == CODEC_ID_H264) {
-        /* we must override 'broken defaults'.
-         * Exactly this set is not considered very intelligent.
-         * Just what has been found.
-         * Feel free to tweak.
-         */
-        c->bit_rate = 500*1000;
-        c->bit_rate_tolerance = c->bit_rate;
-        c->rc_max_rate = 0;
-        c->rc_buffer_size = 0;
-        c->gop_size = 40;
-        c->max_b_frames = 3;
-        c->b_frame_strategy = 1;
-        c->coder_type = 1;
-        c->me_cmp = 1;
-        c->me_range = 16;
-        c->scenechange_threshold = 100500;
-        c->flags |= CODEC_FLAG_LOOP_FILTER;
-        c->me_method = ME_HEX;
-        c->me_subpel_quality = 9;
-        c->i_quant_factor = 0.71;
-        c->qcompress = 0.6;
-        c->max_qdiff = 4;
-        c->flags2 |= CODEC_FLAG2_FASTPSKIP;
-    }
 
     c->qmin = args.quantizer_arg;
     c->qmax = args.quantizer_arg;
