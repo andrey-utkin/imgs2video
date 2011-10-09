@@ -23,20 +23,20 @@ unsigned int extradata_size;
 void *extradata;
 
 int open_video_and_append(char *filename, AVFormatContext *video_output) {
-    AVFormatContext *pFormatCtx;
+    AVFormatContext *pFormatCtx = NULL;
     AVCodecContext *pCodecCtx;
     AVPacket packet;
     int r;
 
-    if(av_open_input_file(&pFormatCtx, filename, NULL, 0, NULL)) {
+    if(avformat_open_input(&pFormatCtx, filename, NULL, NULL)) {
         printf("Can't open image file '%s'\n", filename);
         goto fail_open_file;
     }
 
-    r = av_find_stream_info(pFormatCtx);
+    r = avformat_find_stream_info(pFormatCtx, NULL);
     assert(r >= 0);
 
-    dump_format(pFormatCtx, 0, filename, 0);
+    av_dump_format(pFormatCtx, 0, filename, 0);
 
     pCodecCtx = pFormatCtx->streams[0]->codec;
 
@@ -88,20 +88,20 @@ fail_open_file:
 }
 
 void populate_video_params(const char* filename) {
-    AVFormatContext *pFormatCtx;
+    AVFormatContext *pFormatCtx = NULL;
     AVCodecContext *pCodecCtx;
     AVCodec *pCodec;
     AVPacket packet;
     int r;
 
-    if(av_open_input_file(&pFormatCtx, filename, NULL, 0, NULL)) {
+    if(avformat_open_input(&pFormatCtx, filename, NULL, NULL)) {
         printf("Can't open image file '%s'\n", filename);
         exit(1);
     }
     r = avformat_find_stream_info(pFormatCtx, NULL);
     assert(r >= 0);
 
-    dump_format(pFormatCtx, 0, filename, 0);
+    av_dump_format(pFormatCtx, 0, filename, 0);
     pCodecCtx = pFormatCtx->streams[0]->codec;
 
     // Find the decoder for the video stream
@@ -112,7 +112,7 @@ void populate_video_params(const char* filename) {
     }
 
     // Open codec
-    if(avcodec_open(pCodecCtx, pCodec)<0) {
+    if(avcodec_open2(pCodecCtx, pCodec, NULL)<0) {
         printf("Could not open codec\n");
         exit(1);
     }
@@ -227,25 +227,13 @@ int main(int argc, char **argv) {
 
     /* set the output parameters (must be done even if no
        parameters). */
-    AVFormatParameters ap;
-    ap.time_base.den = frame_rate;
-    ap.time_base.num = 1;
-    ap.width = global_width;
-    ap.height = global_height;
-    ap.pix_fmt = PIX_FMT_YUV420P;
+    av_dump_format(oc, 0, filename, 1);
 
-    if (av_set_parameters(oc, &ap) < 0) {
-        fprintf(stderr, "Invalid output format parameters\n");
-        exit(1);
-    }
-
-    dump_format(oc, 0, filename, 1);
-
-    if (url_fopen(&oc->pb, filename, URL_WRONLY) < 0) {
+    if (avio_open(&oc->pb, filename, URL_WRONLY) < 0) {
         fprintf(stderr, "Could not open '%s'\n", filename);
         exit(1);
     }
-    av_write_header(oc);
+    avformat_write_header(oc, NULL);
 
     char **array = &argv[3];
     for(i = 0; i < argc - 3; i++) {
@@ -255,12 +243,12 @@ int main(int argc, char **argv) {
         }
     }
     av_write_trailer(oc);
-    dump_format(oc, 0, filename, 1);
+    av_dump_format(oc, 0, filename, 1);
 
     avcodec_close(video_st->codec);
     av_freep(&oc->streams[0]->codec);
     av_freep(&oc->streams[0]);
-    url_fclose(oc->pb);
+    avio_close(oc->pb);
     av_free(oc);
 
     return 0;
