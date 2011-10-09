@@ -40,9 +40,6 @@ int open_video_and_append(char *filename, AVFormatContext *video_output) {
 
     pCodecCtx = pFormatCtx->streams[0]->codec;
 
-    if (frames_out == 0)
-        video_output->streams[0]->codec = pFormatCtx->streams[0]->codec;
-
     if (global_width != pCodecCtx->width ||
             global_height != pCodecCtx->height) {
         printf("Dimensions of '%s' %dx%d do not match previous ones %dx%d\n",
