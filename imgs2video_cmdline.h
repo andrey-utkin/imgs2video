@@ -54,7 +54,7 @@ struct args
   char * vcodec_arg;	/**< @brief Video codec, supported are h264, flv1 (default='h264').  */
   char * vcodec_orig;	/**< @brief Video codec, supported are h264, flv1 original value given at command line.  */
   const char *vcodec_help; /**< @brief Video codec, supported are h264, flv1 help description.  */
-  int quantizer_arg;	/**< @brief Quantizer value. -1 for no quantization (default='25').  */
+  int quantizer_arg;	/**< @brief Quantizer value. -1 for no quantization (default='-1').  */
   char * quantizer_orig;	/**< @brief Quantizer value. -1 for no quantization original value given at command line.  */
   const char *quantizer_help; /**< @brief Quantizer value. -1 for no quantization help description.  */
   

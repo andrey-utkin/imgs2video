@@ -8,4 +8,4 @@ option "images-dir"    i "" string typestr="path" required
 option "speedup-coef"  s "How many seconds of real time fits one second of video" int default="240" optional
 option "frame-rate"    f "How many frames per second to produce" int default="50" optional
 option "vcodec"        v "Video codec, supported are h264, flv1" string default="h264" optional
-option "quantizer"     q "Quantizer value. -1 for no quantization" int default="25" optional
+option "quantizer"     q "Quantizer value. -1 for no quantization" int default="-1" optional

@@ -39,7 +39,7 @@ const char *args_help[] = {
   "  -s, --speedup-coef=INT      How many seconds of real time fits one second of \n                                video  (default=`240')",
   "  -f, --frame-rate=INT        How many frames per second to produce  \n                                (default=`50')",
   "  -v, --vcodec=STRING         Video codec, supported are h264, flv1  \n                                (default=`h264')",
-  "  -q, --quantizer=INT         Quantizer value. -1 for no quantization  \n                                (default=`25')",
+  "  -q, --quantizer=INT         Quantizer value. -1 for no quantization  \n                                (default=`-1')",
     0
 };
 
@@ -90,7 +90,7 @@ void clear_args (struct args *args_info)
   args_info->frame_rate_orig = NULL;
   args_info->vcodec_arg = gengetopt_strdup ("h264");
   args_info->vcodec_orig = NULL;
-  args_info->quantizer_arg = 25;
+  args_info->quantizer_arg = -1;
   args_info->quantizer_orig = NULL;
   
 }
@@ -619,7 +619,7 @@ cmdline_parser_internal (
         
           if (update_arg( (void *)&(args_info->quantizer_arg), 
                &(args_info->quantizer_orig), &(args_info->quantizer_given),
-              &(local_args_info.quantizer_given), optarg, 0, "25", ARG_INT,
+              &(local_args_info.quantizer_given), optarg, 0, "-1", ARG_INT,
               check_ambiguity, override, 0, 0,
               "quantizer", 'q',
               additional_error))
