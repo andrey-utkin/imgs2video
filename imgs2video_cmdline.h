@@ -54,9 +54,9 @@ struct args
   char * vcodec_arg;	/**< @brief Video codec, supported are h264, flv1 (default='h264').  */
   char * vcodec_orig;	/**< @brief Video codec, supported are h264, flv1 original value given at command line.  */
   const char *vcodec_help; /**< @brief Video codec, supported are h264, flv1 help description.  */
-  int quantizer_arg;	/**< @brief Quantizer value. -1 for no quantization (default='-1').  */
-  char * quantizer_orig;	/**< @brief Quantizer value. -1 for no quantization original value given at command line.  */
-  const char *quantizer_help; /**< @brief Quantizer value. -1 for no quantization help description.  */
+  char * filter_arg;	/**< @brief avfilter arg (default='fifo').  */
+  char * filter_orig;	/**< @brief avfilter arg original value given at command line.  */
+  const char *filter_help; /**< @brief avfilter arg help description.  */
   
   unsigned int help_given ;	/**< @brief Whether help was given.  */
   unsigned int version_given ;	/**< @brief Whether version was given.  */
@@ -65,7 +65,7 @@ struct args
   unsigned int speedup_coef_given ;	/**< @brief Whether speedup-coef was given.  */
   unsigned int frame_rate_given ;	/**< @brief Whether frame-rate was given.  */
   unsigned int vcodec_given ;	/**< @brief Whether vcodec was given.  */
-  unsigned int quantizer_given ;	/**< @brief Whether quantizer was given.  */
+  unsigned int filter_given ;	/**< @brief Whether filter was given.  */
 
 } ;
 

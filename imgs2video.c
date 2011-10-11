@@ -9,6 +9,13 @@
 #include <assert.h>
 #include <errno.h>
 #include <libavformat/avformat.h>
+#include <libavcodec/avcodec.h>
+#include <libavfilter/avfilter.h>
+#include <libavfilter/avfiltergraph.h>
+#include <libavfilter/vsrc_buffer.h>
+#include <libavfilter/avcodec.h>
+#include <libavfilter/buffersink.h>
+#include <libavutil/avutil.h>
 #include "imgs2video_cmdline.h"
 
 #define FMT_TIMEBASE_DEN 1000
@@ -28,7 +35,14 @@ unsigned int pts_step;
 unsigned int global_width;
 unsigned int global_height;
 
-static void write_video_frame(AVFormatContext *oc, AVFrame *picture, unsigned int duration);
+struct args args;
+unsigned int pts_step;
+
+AVFilterContext *buffersink_ctx;
+AVFilterContext *buffersrc_ctx;
+AVFilterGraph *filter_graph;
+
+static void write_video_frame(AVFormatContext *oc, AVFilterBufferRef *picref);
 
 int match_postfix_jpg(const char *filename) {
     char *p = strcasestr(filename, ".jpg");
@@ -219,8 +233,20 @@ int open_image_and_push_video_frame(struct img *img, AVFormatContext *video_outp
     pFrame->pts = img->ts;
     pFrame->pict_type = 0; /* let codec choose */
 
-    printf("given frame ts: %u duration: %d\n", (unsigned)img->ts, img->duration);
-    write_video_frame(video_output, pFrame, img->duration);
+    /* push the decoded frame into the filtergraph */
+    r = av_vsrc_buffer_add_frame(buffersrc_ctx, pFrame, 0);
+    assert(r == 0);
+
+    /* pull filtered pictures from the filtergraph */
+    AVFilterBufferRef *picref;
+    while (avfilter_poll_frame(buffersink_ctx->inputs[0])) {
+        av_buffersink_get_buffer_ref(buffersink_ctx, &picref, 0);
+        if (picref) {
+            write_video_frame(video_output, picref);
+            avfilter_unref_buffer(picref);
+        }
+    }
+
     av_free(pFrame);
     av_free_packet(&packet);
     avcodec_close(pCodecCtx);
@@ -354,8 +380,9 @@ static AVStream *add_video_stream(AVFormatContext *oc, enum CodecID codec_id)
     c->sample_aspect_ratio.den = 1;
     c->sample_aspect_ratio.num = 1;
 
-    c->qmin = args.quantizer_arg;
-    c->qmax = args.quantizer_arg;
+    c->qmin = 0;
+    c->qmax = 69;
+    c->cqp = 0;
 
     return st;
 }
@@ -385,14 +412,18 @@ static void open_video(AVFormatContext *oc, AVStream *st)
     video_outbuf = av_malloc(video_outbuf_size);
 }
 
-static void write_video_frame(AVFormatContext *oc, AVFrame *picture, unsigned int duration)
+static void write_video_frame(AVFormatContext *oc, AVFilterBufferRef *picref)
 {
     AVStream *st = oc->streams[0];
     int out_size, ret;
     AVCodecContext *c = st->codec;
 
-    //printf("picture.pts %"PRId64"\n", picture->pts);
-
+    AVFrame *picture = avcodec_alloc_frame();
+    assert(picture);
+    ret = avfilter_fill_frame_from_video_buffer_ref(picture, picref);
+    assert(ret == 0);
+    picture->pts = picref->pts;
+    printf("encoding with pts %"PRId64", pict_type %d\n", picture->pts, picture->pict_type);
     /* encode the image */
     out_size = avcodec_encode_video(c, video_outbuf, video_outbuf_size, picture);
 
@@ -434,7 +465,9 @@ int main(int argc, char **argv) {
     int i;
     int n;
 
+    av_log_set_level(AV_LOG_VERBOSE);
     av_register_all();
+    avfilter_register_all();
 
     r = cmdline_parser(argc, argv, &args);
 
@@ -482,6 +515,58 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Could not open '%s'\n", args.output_file_arg);
         exit(1);
     }
+
+
+    AVFilter *buffersrc  = avfilter_get_by_name("buffer");
+    AVFilter *buffersink = avfilter_get_by_name("buffersink");
+    AVFilterInOut *outputs = avfilter_inout_alloc();
+    AVFilterInOut *inputs  = avfilter_inout_alloc();
+    filter_graph = avfilter_graph_alloc();
+
+    char filter_args[50];
+    /* buffer video source: the decoded frames from the decoder will be inserted here. */
+    snprintf(filter_args, sizeof(filter_args), "%d:%d:%d:%d:%d:%d:%d",
+            global_width, global_height, video_st->codec->pix_fmt,
+            video_st->codec->time_base.num, video_st->codec->time_base.den,
+            video_st->codec->sample_aspect_ratio.num, video_st->codec->sample_aspect_ratio.den);
+    r = avfilter_graph_create_filter(&buffersrc_ctx, buffersrc, "in",
+            filter_args, NULL, filter_graph);
+    if (r < 0) {
+        av_log(NULL, AV_LOG_ERROR, "Cannot create buffer source\n");
+        return r;
+    }
+
+    /* buffer video sink: to terminate the filter chain. */
+    enum PixelFormat pix_fmts[] = { PIX_FMT_YUV420P, PIX_FMT_NONE };
+    r = avfilter_graph_create_filter(&buffersink_ctx, buffersink, "out",
+            NULL, pix_fmts, filter_graph);
+    if (r < 0) {
+        av_log(NULL, AV_LOG_ERROR, "Cannot create buffer sink\n");
+        return r;
+    }
+
+    /* Endpoints for the filter graph. */
+    outputs->name       = av_strdup("in");
+    outputs->filter_ctx = buffersrc_ctx;
+    outputs->pad_idx    = 0;
+    outputs->next       = NULL;
+
+    inputs->name       = av_strdup("out");
+    inputs->filter_ctx = buffersink_ctx;
+    inputs->pad_idx    = 0;
+    inputs->next       = NULL;
+
+    char *filter_descr = args.filter_arg;
+    if ((r = avfilter_graph_parse(filter_graph, filter_descr,
+                    &inputs, &outputs, NULL)) < 0)
+        return r;
+
+    if ((r = avfilter_graph_config(filter_graph, NULL)) < 0)
+        return r;
+
+
+
+
     n = imgs_names_durations(args.images_dir_arg, &array);
     assert(n > 0);
 

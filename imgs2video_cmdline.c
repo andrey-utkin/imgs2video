@@ -39,7 +39,7 @@ const char *args_help[] = {
   "  -s, --speedup-coef=INT      How many seconds of real time fits one second of \n                                video  (default=`240')",
   "  -f, --frame-rate=INT        How many frames per second to produce  \n                                (default=`50')",
   "  -v, --vcodec=STRING         Video codec, supported are h264, flv1  \n                                (default=`h264')",
-  "  -q, --quantizer=INT         Quantizer value. -1 for no quantization  \n                                (default=`-1')",
+  "      --filter=STRING         avfilter arg  (default=`fifo')",
     0
 };
 
@@ -73,7 +73,7 @@ void clear_given (struct args *args_info)
   args_info->speedup_coef_given = 0 ;
   args_info->frame_rate_given = 0 ;
   args_info->vcodec_given = 0 ;
-  args_info->quantizer_given = 0 ;
+  args_info->filter_given = 0 ;
 }
 
 static
@@ -90,8 +90,8 @@ void clear_args (struct args *args_info)
   args_info->frame_rate_orig = NULL;
   args_info->vcodec_arg = gengetopt_strdup ("h264");
   args_info->vcodec_orig = NULL;
-  args_info->quantizer_arg = -1;
-  args_info->quantizer_orig = NULL;
+  args_info->filter_arg = gengetopt_strdup ("fifo");
+  args_info->filter_orig = NULL;
   
 }
 
@@ -107,7 +107,7 @@ void init_args_info(struct args *args_info)
   args_info->speedup_coef_help = args_help[4] ;
   args_info->frame_rate_help = args_help[5] ;
   args_info->vcodec_help = args_help[6] ;
-  args_info->quantizer_help = args_help[7] ;
+  args_info->filter_help = args_help[7] ;
   
 }
 
@@ -196,7 +196,8 @@ cmdline_parser_release (struct args *args_info)
   free_string_field (&(args_info->frame_rate_orig));
   free_string_field (&(args_info->vcodec_arg));
   free_string_field (&(args_info->vcodec_orig));
-  free_string_field (&(args_info->quantizer_orig));
+  free_string_field (&(args_info->filter_arg));
+  free_string_field (&(args_info->filter_orig));
   
   
 
@@ -241,8 +242,8 @@ cmdline_parser_dump(FILE *outfile, struct args *args_info)
     write_into_file(outfile, "frame-rate", args_info->frame_rate_orig, 0);
   if (args_info->vcodec_given)
     write_into_file(outfile, "vcodec", args_info->vcodec_orig, 0);
-  if (args_info->quantizer_given)
-    write_into_file(outfile, "quantizer", args_info->quantizer_orig, 0);
+  if (args_info->filter_given)
+    write_into_file(outfile, "filter", args_info->filter_orig, 0);
   
 
   i = EXIT_SUCCESS;
@@ -534,11 +535,11 @@ cmdline_parser_internal (
         { "speedup-coef",	1, NULL, 's' },
         { "frame-rate",	1, NULL, 'f' },
         { "vcodec",	1, NULL, 'v' },
-        { "quantizer",	1, NULL, 'q' },
+        { "filter",	1, NULL, 0 },
         { 0,  0, 0, 0 }
       };
 
-      c = getopt_long (argc, argv, "hVo:i:s:f:v:q:", long_options, &option_index);
+      c = getopt_long (argc, argv, "hVo:i:s:f:v:", long_options, &option_index);
 
       if (c == -1) break;	/* Exit from `while (1)' loop.  */
 
@@ -614,20 +615,24 @@ cmdline_parser_internal (
             goto failure;
         
           break;
-        case 'q':	/* Quantizer value. -1 for no quantization.  */
-        
-        
-          if (update_arg( (void *)&(args_info->quantizer_arg), 
-               &(args_info->quantizer_orig), &(args_info->quantizer_given),
-              &(local_args_info.quantizer_given), optarg, 0, "-1", ARG_INT,
-              check_ambiguity, override, 0, 0,
-              "quantizer", 'q',
-              additional_error))
-            goto failure;
-        
-          break;
 
         case 0:	/* Long option with no short option */
+          /* avfilter arg.  */
+          if (strcmp (long_options[option_index].name, "filter") == 0)
+          {
+          
+          
+            if (update_arg( (void *)&(args_info->filter_arg), 
+                 &(args_info->filter_orig), &(args_info->filter_given),
+                &(local_args_info.filter_given), optarg, 0, "fifo", ARG_STRING,
+                check_ambiguity, override, 0, 0,
+                "filter", '-',
+                additional_error))
+              goto failure;
+          
+          }
+          
+          break;
         case '?':	/* Invalid option.  */
           /* `getopt_long' already printed an error message.  */
           goto failure;
