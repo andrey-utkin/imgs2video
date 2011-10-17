@@ -1,14 +1,15 @@
 #!/bin/bash
 
-if [[ $# -ne 2 ]]
+if [[ $# -lt 2 ]]
 then
-    echo 'Usage: <input images dir> <outfile>'
+    echo 'Usage: <input images dir> <outfile> [filter]'
     echo 'Options are configured inside script body, in this version'
     exit 1
 fi
 
 IMGDIR=$1
 OUTFILE=$2
+FILTER=$3
 
 IMGS2VIDEO=./imgs2video
 BITRATE=2000k
@@ -31,7 +32,12 @@ function cleanup {
 trap cleanup INT TERM QUIT
 
 # Assemble video from images dir using our C util
-$IMGS2VIDEO -i $IMGDIR -o $TMPFILE1
+if [[ -z $FILTER ]]
+then
+    $IMGS2VIDEO -i $IMGDIR -o $TMPFILE1
+else
+    $IMGS2VIDEO -i $IMGDIR -o $TMPFILE1 --filter $FILTER
+fi
 
 # Two-passes transcoding, with given average bitrate target
 # If quality is not satisfying, try

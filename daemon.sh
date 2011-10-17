@@ -16,7 +16,17 @@ function hourly {
         rmdir $1
         return
     fi
-    ./assemble_and_compress.sh $1 $2
+# check if the hour belongs to night, to apply denoise filter
+    for x in 18 19 20 21 22 23 00 01 02 03 04 05
+    do
+        if [[ $x == $3 ]]
+        then
+            FILTER='hqdn3d=20'
+            break
+        fi
+    done
+
+    ./assemble_and_compress.sh $1 $2 $FILTER
     LAST24=`ls -t $VIDEODIR/* | head -n 24 | tac`
     if [[ -z "$LAST24" ]]
     then
