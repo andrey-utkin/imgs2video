@@ -12,6 +12,7 @@ OUTFILE=$2
 FILTER=$3
 
 IMGS2VIDEO=./imgs2video
+FFMPEG=ffmpeg
 BITRATE=2000k
 VPRE=medium
 
@@ -43,11 +44,11 @@ fi
 # If quality is not satisfying, try
 # 1. Use VPRE 'slow', 'veryslow'
 # 2. Increase desired bitrate
-ffmpeg -y -i $TMPFILE1 -pass 1 -passlogfile $PASSLOGFILE \
+$FFMPEG -y -i $TMPFILE1 -pass 1 -passlogfile $PASSLOGFILE \
     -vcodec libx264 -vpre ${VPRE}_firstpass \
     -x264opts stats=$X264PLF \
     -b:v $BITRATE -f flv /dev/null
-ffmpeg -y -i $TMPFILE1 -pass 2 -passlogfile $PASSLOGFILE \
+$FFMPEG -y -i $TMPFILE1 -pass 2 -passlogfile $PASSLOGFILE \
     -vcodec libx264 -vpre $VPRE \
     -x264opts stats=$X264PLF \
     -b:v $BITRATE $OUTFILE
