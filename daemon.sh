@@ -2,6 +2,8 @@
 
 IMGSDIR=imgs_by_hour_dir
 VIDEODIR=video_hours
+SAVE_IMGS_DAYS=1
+SAVE_VIDEO_HOURS_DAYS=1
 DAYFILE=last_day #prefix without extension
 URL='http://upload.wikimedia.org/wikipedia/commons/1/1e/Stonehenge.jpg'
 
@@ -9,6 +11,10 @@ mkdir -p $IMGSDIR
 mkdir -p $VIDEODIR
 
 function hourly {
+    echo Gonna remove old files
+    find $IMGSDIR -mtime +$SAVE_IMGS_DAYS -exec rm {} \;
+    find $VIDEODIR -mtime +$SAVE_VIDEO_HOURS_DAYS -exec rm {} \;
+
     echo Gonna assemble $1 to $2
     if [[ -z "`ls $1`" ]]
     then
