@@ -409,7 +409,7 @@ static void open_video(AVFormatContext *oc, AVStream *st)
     }
 
     /* allocate output buffer */
-    video_outbuf_size = 900000;
+    video_outbuf_size = 10000000;
     video_outbuf = av_malloc(video_outbuf_size);
 }
 
