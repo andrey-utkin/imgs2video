@@ -383,6 +383,7 @@ static AVStream *add_video_stream(AVFormatContext *oc, enum CodecID codec_id)
     c->qmin = 0;
     c->qmax = 69;
     c->cqp = 0;
+    c->thread_count = 0; // use several threads for encoding
 
     return st;
 }
