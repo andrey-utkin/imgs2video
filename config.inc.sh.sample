@@ -3,6 +3,7 @@
 IMGS2VIDEO=`dirname $0`/imgs2video
 FFMPEG=ffmpeg
 BITRATE=2000k
+OFMT=flv # output format
 
 IMGSDIR=`pwd`/imgs_by_hour_dir
 VIDEODIR=`pwd`/video_hours

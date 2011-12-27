@@ -46,10 +46,10 @@ function hourly {
         echo Assembling failed, skipping catenation
         return
     fi
-    ./cat ${DAYFILE}_part.flv -- $LAST24
+    ./cat ${DAYFILE}_part.$OFMT -- $LAST24
     if [[ $? -eq 0 ]]
     then
-        mv ${DAYFILE}_part.flv ${DAYFILE}.flv
+        mv ${DAYFILE}_part.$OFMT ${DAYFILE}.$OFMT
     else
         echo "Concatenation of files $LAST24 failed" >&2
     fi
@@ -89,7 +89,7 @@ do
     if [[ $PREV_LAP_HOUR != 'unknown' ]] && [[ $PREV_LAP_HOUR != $HOUR ]]
     then
         echo "Hour has ticked from $PREV_LAP_HOUR to $HOUR, launching video assembling"
-        hourly $IMGSDIR/$PREV_LAP_DAY/$PREV_LAP_HOUR $VIDEODIR/${PREV_LAP_DAY}_${PREV_LAP_HOUR}.flv $PREV_LAP_HOUR & #executes in subshell, no back data flow is possible
+        hourly $IMGSDIR/$PREV_LAP_DAY/$PREV_LAP_HOUR $VIDEODIR/${PREV_LAP_DAY}_${PREV_LAP_HOUR}.$OFMT $PREV_LAP_HOUR & #executes in subshell, no back data flow is possible
     fi
 
     PREV_LAP_HOUR=$HOUR
