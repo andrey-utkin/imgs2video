@@ -1,0 +1,10 @@
+imgs2video
+
+This complex program gives you video (tested with flv output format, h264 codec)
+from your images (tested with jpg). Timestamps are taken from file modification date.
+
+Requires libavformat, libavcodec, libavfilter; encoder libx264, muxer flv,
+decoder and demuxer mjpeg, and filter hqdn3d if you want denoise.
+
+Compatible with both ffmpeg.org and libav.org.
+libav.org is author's advice, as community is more helpful.
