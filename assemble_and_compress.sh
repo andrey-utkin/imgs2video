@@ -14,7 +14,6 @@ FILTER=$3
 IMGS2VIDEO=./imgs2video
 FFMPEG=ffmpeg
 BITRATE=2000k
-VPRE=medium
 
 TMPFILE1=`tempfile --suffix .flv`
 PASSLOGFILE=`tempfile`
@@ -42,14 +41,14 @@ fi
 
 # Two-passes transcoding, with given average bitrate target
 # If quality is not satisfying, try
-# 1. Use VPRE 'slow', 'veryslow'
+# 1. Use -vpre 'slow', 'veryslow' (also *_firstpass)
 # 2. Increase desired bitrate
 $FFMPEG -y -i $TMPFILE1 -pass 1 -passlogfile $PASSLOGFILE \
-    -vcodec libx264 -vpre ${VPRE}_firstpass \
+    -vcodec libx264  \
     -x264opts stats=$X264PLF \
     -b:v $BITRATE -f flv /dev/null
 $FFMPEG -y -i $TMPFILE1 -pass 2 -passlogfile $PASSLOGFILE \
-    -vcodec libx264 -vpre $VPRE \
+    -vcodec libx264 \
     -x264opts stats=$X264PLF \
     -b:v $BITRATE $OUTFILE
 
