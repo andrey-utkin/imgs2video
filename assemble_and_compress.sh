@@ -23,17 +23,13 @@ IMGDIR=$1
 OUTFILE=$2
 FILTER=$3
 
-TMPFILE1=`tempfile --suffix .flv`
-PASSLOGFILE=`tempfile`
-PASSLOGFILE_FIX=$PASSLOGFILE'-0.log'
-X264PLF=`tempfile --suffix .log`
+TMPDIR=`mktemp --tmpdir --directory imgs2video.XXXXXXX`
+TMPFILE=$TMPDIR/imgs2video_out.flv
+pushd $TMPDIR
 
 function cleanup {
     echo "Cleaning up temp files"
-    rm -v $TMPFILE1
-    rm -v $PASSLOGFILE
-    rm -v $PASSLOGFILE_FIX
-    rm -v $X264PLF
+    rm -rfv $TMPDIR
     exit 0
 }
 
@@ -51,13 +47,11 @@ fi
 # If quality is not satisfying, try
 # 1. Use -vpre 'slow', 'veryslow' (also *_firstpass)
 # 2. Increase desired bitrate
-$FFMPEG -y -i $TMPFILE1 -pass 1 -passlogfile $PASSLOGFILE \
+$FFMPEG -y -i $TMPFILE1 -pass 1 \
     -vcodec libx264  \
-    -x264opts stats=$X264PLF \
     -b:v $BITRATE -f flv /dev/null
-$FFMPEG -y -i $TMPFILE1 -pass 2 -passlogfile $PASSLOGFILE \
+$FFMPEG -y -i $TMPFILE1 -pass 2 \
     -vcodec libx264 \
-    -x264opts stats=$X264PLF \
     -b:v $BITRATE $OUTFILE
 
 cleanup
