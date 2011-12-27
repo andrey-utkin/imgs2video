@@ -7,13 +7,21 @@ then
     exit 1
 fi
 
+if [[ -z $IMGS2VIDEO_CFGFILE ]]
+then
+    echo 'IMGS2VIDEO_CFGFILE env var must be available'
+    exit 1
+fi
+if ! [[ -f $IMGS2VIDEO_CFGFILE ]]
+then
+    echo "Cfg file $IMGS2VIDEO_CFGFILE does not exist"
+    exit 1
+fi
+source $IMGS2VIDEO_CFGFILE
+
 IMGDIR=$1
 OUTFILE=$2
 FILTER=$3
-
-IMGS2VIDEO=./imgs2video
-FFMPEG=ffmpeg
-BITRATE=2000k
 
 TMPFILE1=`tempfile --suffix .flv`
 PASSLOGFILE=`tempfile`

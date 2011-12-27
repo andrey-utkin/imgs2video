@@ -1,11 +1,18 @@
 #!/bin/bash
 
-IMGSDIR=imgs_by_hour_dir
-VIDEODIR=video_hours
-SAVE_IMGS_DAYS=1
-SAVE_VIDEO_HOURS_DAYS=1
-DAYFILE=last_day #prefix without extension
-URL='http://upload.wikimedia.org/wikipedia/commons/1/1e/Stonehenge.jpg'
+if [[ $# -ne 1 ]]
+then
+    echo "Usage: $0 <config file>"
+    echo "Config file should be derived from config.inc.sh.sample"
+    exit 1
+fi
+export IMGS2VIDEO_CFGFILE=$1 # exporting for routines in sub-shells
+if ! [[ -f $IMGS2VIDEO_CFGFILE ]]
+then
+    echo "Cfg file $IMGS2VIDEO_CFGFILE does not exist"
+    exit 1
+fi
+source $IMGS2VIDEO_CFGFILE
 
 mkdir -p $IMGSDIR
 mkdir -p $VIDEODIR
