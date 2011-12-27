@@ -13,10 +13,9 @@
 #include <libavfilter/avfilter.h>
 #include <libavfilter/avfiltergraph.h>
 #include <libavfilter/vsrc_buffer.h>
-#include <libavfilter/avcodec.h>
-#include <libavfilter/buffersink.h>
 #include <libavutil/avutil.h>
 #include "imgs2video_cmdline.h"
+#include "compat.h"
 
 #define FMT_TIMEBASE_DEN 1000
 
@@ -234,13 +233,20 @@ int open_image_and_push_video_frame(struct img *img, AVFormatContext *video_outp
     pFrame->pict_type = 0; /* let codec choose */
 
     /* push the decoded frame into the filtergraph */
+#ifdef LIBAV
+    r = av_vsrc_buffer_add_frame(buffersrc_ctx, pFrame, pFrame->pts, (AVRational){1, 1});
+#else
     r = av_vsrc_buffer_add_frame(buffersrc_ctx, pFrame, 0);
+#endif
     assert(r == 0);
 
     /* pull filtered pictures from the filtergraph */
-    AVFilterBufferRef *picref;
+    AVFilterBufferRef *picref = NULL;
     while (avfilter_poll_frame(buffersink_ctx->inputs[0])) {
-        av_buffersink_get_buffer_ref(buffersink_ctx, &picref, 0);
+        r = avfilter_request_frame(buffersink_ctx->inputs[0]);
+        if (r == 0)
+            picref = buffersink_ctx->inputs[0]->cur_buf;
+
         if (picref) {
             write_video_frame(video_output, picref);
             avfilter_unref_buffer(picref);
@@ -519,7 +525,7 @@ int main(int argc, char **argv) {
 
 
     AVFilter *buffersrc  = avfilter_get_by_name("buffer");
-    AVFilter *buffersink = avfilter_get_by_name("buffersink");
+    AVFilter *buffersink = avfilter_get_by_name("nullsink");
     AVFilterInOut *outputs = avfilter_inout_alloc();
     AVFilterInOut *inputs  = avfilter_inout_alloc();
     filter_graph = avfilter_graph_alloc();
@@ -558,8 +564,16 @@ int main(int argc, char **argv) {
     inputs->next       = NULL;
 
     char *filter_descr = args.filter_arg;
-    if ((r = avfilter_graph_parse(filter_graph, filter_descr,
-                    &inputs, &outputs, NULL)) < 0)
+
+    r = avfilter_graph_parse(filter_graph, filter_descr,
+#ifdef LIBAV
+            inputs, outputs,
+#else
+            &inputs, &outputs,
+#endif
+            NULL);
+
+    if (r < 0)
         return r;
 
     if ((r = avfilter_graph_config(filter_graph, NULL)) < 0)
