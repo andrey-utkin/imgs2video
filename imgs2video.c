@@ -238,7 +238,7 @@ int open_image_and_push_video_frame(struct img *img, AVFormatContext *video_outp
 #else
     r = av_vsrc_buffer_add_frame(buffersrc_ctx, pFrame, 0);
 #endif
-    assert(r == 0);
+    assert(r >= 0);
 
     /* pull filtered pictures from the filtergraph */
     AVFilterBufferRef *picref = NULL;
