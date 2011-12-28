@@ -72,13 +72,11 @@ int open_video_and_append(char *filename, AVFormatContext *video_output) {
         av_free_packet(&packet);
     }
 
-    avcodec_close(pCodecCtx);
     av_close_input_file(pFormatCtx);
 
     return 0;
 
 fail_check_video:
-    avcodec_close(pCodecCtx);
     av_close_input_file(pFormatCtx);
 fail_open_file:
     return 1;
@@ -242,7 +240,6 @@ int main(int argc, char **argv) {
     av_write_trailer(oc);
     av_dump_format(oc, 0, filename, 1);
 
-    avcodec_close(video_st->codec);
     av_freep(&oc->streams[0]->codec);
     av_freep(&oc->streams[0]);
     avio_close(oc->pb);
