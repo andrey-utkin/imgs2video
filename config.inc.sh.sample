@@ -1,6 +1,7 @@
 # configuration options of scripts daemon.sh, assemple_and_compress.sh
 
 IMGS2VIDEO=`dirname $0`/imgs2video
+I2V_OPTS= # arbitrary options for imgs2video command
 FFMPEG=ffmpeg
 BITRATE=2000k
 OFMT=flv # output format

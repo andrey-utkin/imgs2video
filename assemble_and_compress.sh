@@ -38,9 +38,9 @@ trap cleanup INT TERM QUIT
 # Assemble video from images dir using our C util
 if [[ -z $FILTER ]]
 then
-    $IMGS2VIDEO -i $IMGDIR -o $TMPFILE1
+    $IMGS2VIDEO -i $IMGDIR -o $TMPFILE1 $I2V_OPTS
 else
-    $IMGS2VIDEO -i $IMGDIR -o $TMPFILE1 --filter $FILTER
+    $IMGS2VIDEO -i $IMGDIR -o $TMPFILE1 $I2V_OPTS --filter $FILTER
 fi
 
 # Two-passes transcoding, with given average bitrate target
