@@ -10,6 +10,8 @@
 AVFilterInOut *avfilter_inout_alloc(void);
 int avfilter_fill_frame_from_video_buffer_ref(AVFrame *frame,
         const AVFilterBufferRef *picref);
+#else
+#include <libavfilter/avcodec.h>
 #endif
 
 #endif // COMPAT_H
