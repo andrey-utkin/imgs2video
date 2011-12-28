@@ -49,9 +49,9 @@ fi
 # 2. Increase desired bitrate
 $FFMPEG -y -i $TMPFILE1 -pass 1 \
     -vcodec libx264  \
-    -b:v $BITRATE -f $OFMT /dev/null
+    -b $BITRATE -f $OFMT /dev/null
 $FFMPEG -y -i $TMPFILE1 -pass 2 \
     -vcodec libx264 \
-    -b:v $BITRATE $OUTFILE
+    -b $BITRATE $OUTFILE
 
 cleanup
