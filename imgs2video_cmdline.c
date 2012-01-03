@@ -42,6 +42,7 @@ const char *args_help[] = {
   "      --filter=STRING         avfilter arg  (default=`fifo')",
   "      --preset=STRING         H264 preset  (default=`medium')",
   "      --profile=STRING        H264 profile  (default=`baseline')",
+  "      --bitrate=INT           Bitrate, bit/s  (default=`2000000')",
     0
 };
 
@@ -78,6 +79,7 @@ void clear_given (struct args *args_info)
   args_info->filter_given = 0 ;
   args_info->preset_given = 0 ;
   args_info->profile_given = 0 ;
+  args_info->bitrate_given = 0 ;
 }
 
 static
@@ -100,6 +102,8 @@ void clear_args (struct args *args_info)
   args_info->preset_orig = NULL;
   args_info->profile_arg = gengetopt_strdup ("baseline");
   args_info->profile_orig = NULL;
+  args_info->bitrate_arg = 2000000;
+  args_info->bitrate_orig = NULL;
   
 }
 
@@ -118,6 +122,7 @@ void init_args_info(struct args *args_info)
   args_info->filter_help = args_help[7] ;
   args_info->preset_help = args_help[8] ;
   args_info->profile_help = args_help[9] ;
+  args_info->bitrate_help = args_help[10] ;
   
 }
 
@@ -212,6 +217,7 @@ cmdline_parser_release (struct args *args_info)
   free_string_field (&(args_info->preset_orig));
   free_string_field (&(args_info->profile_arg));
   free_string_field (&(args_info->profile_orig));
+  free_string_field (&(args_info->bitrate_orig));
   
   
 
@@ -262,6 +268,8 @@ cmdline_parser_dump(FILE *outfile, struct args *args_info)
     write_into_file(outfile, "preset", args_info->preset_orig, 0);
   if (args_info->profile_given)
     write_into_file(outfile, "profile", args_info->profile_orig, 0);
+  if (args_info->bitrate_given)
+    write_into_file(outfile, "bitrate", args_info->bitrate_orig, 0);
   
 
   i = EXIT_SUCCESS;
@@ -556,6 +564,7 @@ cmdline_parser_internal (
         { "filter",	1, NULL, 0 },
         { "preset",	1, NULL, 0 },
         { "profile",	1, NULL, 0 },
+        { "bitrate",	1, NULL, 0 },
         { 0,  0, 0, 0 }
       };
 
@@ -675,6 +684,20 @@ cmdline_parser_internal (
                 &(local_args_info.profile_given), optarg, 0, "baseline", ARG_STRING,
                 check_ambiguity, override, 0, 0,
                 "profile", '-',
+                additional_error))
+              goto failure;
+          
+          }
+          /* Bitrate, bit/s.  */
+          else if (strcmp (long_options[option_index].name, "bitrate") == 0)
+          {
+          
+          
+            if (update_arg( (void *)&(args_info->bitrate_arg), 
+                 &(args_info->bitrate_orig), &(args_info->bitrate_given),
+                &(local_args_info.bitrate_given), optarg, 0, "2000000", ARG_INT,
+                check_ambiguity, override, 0, 0,
+                "bitrate", '-',
                 additional_error))
               goto failure;
           

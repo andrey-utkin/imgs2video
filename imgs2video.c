@@ -390,9 +390,8 @@ static AVStream *add_video_stream(AVFormatContext *oc, enum CodecID codec_id)
     c->sample_aspect_ratio.den = 1;
     c->sample_aspect_ratio.num = 1;
 
-    c->qmin = 0;
-    c->qmax = 69;
-    c->cqp = 0;
+    c->bit_rate = args.bitrate_arg;
+    c->bit_rate_tolerance = c->bit_rate / 5;
     c->thread_count = 0; // use several threads for encoding
 
     return st;
@@ -413,7 +412,10 @@ static void open_video(AVFormatContext *oc, AVStream *st)
     }
 
     AVDictionary *opts = NULL;
-    av_dict_set(&opts, "profile", args.profile_arg, 0);
+    if (args.bitrate_arg != 0) // profiles don't support lossless
+        av_dict_set(&opts, "profile", args.profile_arg, 0);
+    else
+        av_dict_set(&opts, "qp", "0", 0);
     av_dict_set(&opts, "preset", args.preset_arg, 0);
     /* open the codec */
     if (avcodec_open2(c, codec, &opts) < 0) {

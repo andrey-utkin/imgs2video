@@ -63,6 +63,9 @@ struct args
   char * profile_arg;	/**< @brief H264 profile (default='baseline').  */
   char * profile_orig;	/**< @brief H264 profile original value given at command line.  */
   const char *profile_help; /**< @brief H264 profile help description.  */
+  int bitrate_arg;	/**< @brief Bitrate, bit/s (default='2000000').  */
+  char * bitrate_orig;	/**< @brief Bitrate, bit/s original value given at command line.  */
+  const char *bitrate_help; /**< @brief Bitrate, bit/s help description.  */
   
   unsigned int help_given ;	/**< @brief Whether help was given.  */
   unsigned int version_given ;	/**< @brief Whether version was given.  */
@@ -74,6 +77,7 @@ struct args
   unsigned int filter_given ;	/**< @brief Whether filter was given.  */
   unsigned int preset_given ;	/**< @brief Whether preset was given.  */
   unsigned int profile_given ;	/**< @brief Whether profile was given.  */
+  unsigned int bitrate_given ;	/**< @brief Whether bitrate was given.  */
 
 } ;
 

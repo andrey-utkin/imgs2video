@@ -35,6 +35,13 @@ function cleanup {
 
 trap cleanup INT TERM QUIT
 
+if [[ "$TWOPASS" == true ]]
+then
+    I2V_OPTS="$I2V_OPTS --bitrate 0 "
+else
+    I2V_OPTS="$I2V_OPTS --bitrate $BITRATE "
+fi
+
 # Assemble video from images dir using our C util
 if [[ -z $FILTER ]]
 then
@@ -43,15 +50,20 @@ else
     $IMGS2VIDEO -i $IMGDIR -o $TMPFILE1 $I2V_OPTS --filter $FILTER
 fi
 
-# Two-passes transcoding, with given average bitrate target
-# If quality is not satisfying, try
-# 1. Use -vpre 'slow', 'veryslow' (also *_firstpass)
-# 2. Increase desired bitrate
-$FFMPEG -y -i $TMPFILE1 -pass 1 \
-    -vcodec libx264  \
-    -b $BITRATE -f $OFMT /dev/null
-$FFMPEG -y -i $TMPFILE1 -pass 2 \
-    -vcodec libx264 \
-    -b $BITRATE $OUTFILE
+if [[ "$TWOPASS" == true ]]
+then
+    # Two-passes transcoding, with given average bitrate target
+    # If quality is not satisfying, try
+    # 1. Use -vpre 'slow', 'veryslow' (also *_firstpass)
+    # 2. Increase desired bitrate
+    $FFMPEG -y -i $TMPFILE1 -pass 1 \
+        -vcodec libx264  \
+        -b $BITRATE -f $OFMT /dev/null
+    $FFMPEG -y -i $TMPFILE1 -pass 2 \
+        -vcodec libx264 \
+        -b $BITRATE $OUTFILE
+else
+    mv $TMPFILE1 $OUTFILE
+fi
 
 cleanup

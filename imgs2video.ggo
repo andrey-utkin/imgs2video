@@ -11,3 +11,4 @@ option "vcodec"        v "Video codec, supported are h264, flv1" string default=
 option "filter"        - "avfilter arg" string default="fifo" optional
 option "preset"        - "H264 preset" string default="medium" optional
 option "profile"       - "H264 profile" string default="baseline" optional
+option "bitrate"       - "Bitrate, bit/s" int default="2000000" optional
