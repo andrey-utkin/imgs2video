@@ -277,6 +277,10 @@ char *get_some_pic(const char *dirname) {
     int r;
     char *ret;
     DIR *dir = opendir(dirname);
+    if (!dir) {
+        fprintf(stderr, "dir '%s' not found", dirname);
+        return NULL;
+    }
     struct dirent *entry;
     do {
         entry = readdir(dir);
@@ -480,6 +484,8 @@ int main(int argc, char **argv) {
 
     char *tmp;
     tmp = get_some_pic(args.images_dir_arg);
+    if (!tmp)
+        return 1;
     init_sizes(tmp);
     free(tmp);
 
