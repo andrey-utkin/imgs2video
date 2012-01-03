@@ -19,8 +19,8 @@ then
 fi
 source $IMGS2VIDEO_CFGFILE
 
-IMGDIR=$1
-OUTFILE=$2
+IMGDIR=`readlink -f $1`
+OUTFILE=`readlink -f $2`
 FILTER=$3
 
 TMPDIR=`mktemp --tmpdir --directory imgs2video.XXXXXXX`
