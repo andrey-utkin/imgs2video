@@ -229,7 +229,7 @@ int open_image_and_push_video_frame(struct img *img, AVFormatContext *video_outp
         goto fail_decode;
     }
     pFrame->quality = 1;
-    pFrame->pts = img->ts;
+    pFrame->pts = img->ts / pts_step; // for encoding, pts step must be exactly 1
     pFrame->pict_type = 0; /* let codec choose */
 
     /* push the decoded frame into the filtergraph */
