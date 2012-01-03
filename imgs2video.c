@@ -412,8 +412,11 @@ static void open_video(AVFormatContext *oc, AVStream *st)
         exit(1);
     }
 
+    AVDictionary *opts = NULL;
+    av_dict_set(&opts, "profile", args.profile_arg, 0);
+    av_dict_set(&opts, "preset", args.preset_arg, 0);
     /* open the codec */
-    if (avcodec_open2(c, codec, NULL) < 0) {
+    if (avcodec_open2(c, codec, &opts) < 0) {
         fprintf(stderr, "could not open codec\n");
         exit(1);
     }

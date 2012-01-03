@@ -57,6 +57,12 @@ struct args
   char * filter_arg;	/**< @brief avfilter arg (default='fifo').  */
   char * filter_orig;	/**< @brief avfilter arg original value given at command line.  */
   const char *filter_help; /**< @brief avfilter arg help description.  */
+  char * preset_arg;	/**< @brief H264 preset (default='medium').  */
+  char * preset_orig;	/**< @brief H264 preset original value given at command line.  */
+  const char *preset_help; /**< @brief H264 preset help description.  */
+  char * profile_arg;	/**< @brief H264 profile (default='baseline').  */
+  char * profile_orig;	/**< @brief H264 profile original value given at command line.  */
+  const char *profile_help; /**< @brief H264 profile help description.  */
   
   unsigned int help_given ;	/**< @brief Whether help was given.  */
   unsigned int version_given ;	/**< @brief Whether version was given.  */
@@ -66,6 +72,8 @@ struct args
   unsigned int frame_rate_given ;	/**< @brief Whether frame-rate was given.  */
   unsigned int vcodec_given ;	/**< @brief Whether vcodec was given.  */
   unsigned int filter_given ;	/**< @brief Whether filter was given.  */
+  unsigned int preset_given ;	/**< @brief Whether preset was given.  */
+  unsigned int profile_given ;	/**< @brief Whether profile was given.  */
 
 } ;
 
