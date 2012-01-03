@@ -34,7 +34,10 @@ int open_video_and_append(char *filename, AVFormatContext *video_output) {
     }
 
     r = avformat_find_stream_info(pFormatCtx, NULL);
-    assert(r >= 0);
+    if (r < 0) {
+        fprintf(stderr, "avformat_find_stream_info fail %d\n", r);
+        return r;
+    }
 
     av_dump_format(pFormatCtx, 0, filename, 0);
 
