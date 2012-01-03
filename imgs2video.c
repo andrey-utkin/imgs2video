@@ -472,6 +472,13 @@ static void write_video_frame(AVFormatContext *oc, AVFilterBufferRef *picref)
     }
 }
 
+int global_init(void) {
+    av_log_set_level(AV_LOG_VERBOSE);
+    av_register_all();
+    avfilter_register_all();
+    return 0;
+}
+
 int main(int argc, char **argv) {
     int r;
     struct img *array;
@@ -481,9 +488,8 @@ int main(int argc, char **argv) {
     int i;
     int n;
 
-    av_log_set_level(AV_LOG_VERBOSE);
-    av_register_all();
-    avfilter_register_all();
+    r = global_init();
+    assert(!r);
 
     r = cmdline_parser(argc, argv, &args);
 
