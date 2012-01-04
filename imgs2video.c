@@ -109,7 +109,7 @@ int main(int argc, char **argv) {
     }
 
     for(i = 0; i < tc->n_frames; i++) {
-        printf("processing frame %d/%d\n", i, tc->n_frames);
+        printf("processing frame %d/%d\n", i+1, tc->n_frames);
         if (i > 0)
             assert(tc->frames[i].ts > tc->frames[i-1].ts);
         r = tc_process_frame(tc, i);
