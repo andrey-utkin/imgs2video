@@ -38,14 +38,13 @@ struct transcoder {
     AVFilterGraph *filter_graph;
     uint8_t *video_outbuf;
     int video_outbuf_size;
+    unsigned int frames_in; // how many have been read
     unsigned int frames_out;
     unsigned int pts_step;
     unsigned int width;
     unsigned int height;
 };
 typedef struct transcoder Transcoder;
-
-static int write_video_frame(Transcoder *tc, AVFilterBufferRef *picref);
 
 int match_postfix_jpg(const char *filename) {
     char *p = strcasestr(filename, ".jpg");
@@ -180,8 +179,11 @@ int imgs_names_durations(Transcoder *tc) {
     return 0;
 }
 
-/* http://stackoverflow.com/questions/3527584/ffmpeg-jpeg-file-to-avframe */
-int open_image_and_push_video_frame(struct img *img, Transcoder *tc) {
+/**
+ * @return 0 on success, <0 on fatal error, 1 on non-fatal error
+ */
+int tc_process_frame_input(Transcoder *tc, unsigned int i) {
+    struct img *img = &tc->frames[i];
     AVFormatContext *pFormatCtx = NULL;
     AVCodecContext *pCodecCtx;
     AVCodec *pCodec;
@@ -231,8 +233,8 @@ int open_image_and_push_video_frame(struct img *img, Transcoder *tc) {
         printf("Failed to decode image\n");
         goto fail_decode;
     }
-    pFrame->quality = 1;
-    pFrame->pts = img->ts / tc->pts_step; // for encoding, pts step must be exactly 1
+    pFrame->quality = 1; // WTF?
+    pFrame->pts = tc->frames_in++; // for encoding, pts step must be exactly 1
     pFrame->pict_type = 0; /* let codec choose */
 
     /* push the decoded frame into the filtergraph */
@@ -242,18 +244,6 @@ int open_image_and_push_video_frame(struct img *img, Transcoder *tc) {
     r = av_vsrc_buffer_add_frame(tc->filter_src, pFrame, 0);
 #endif
     assert(r >= 0);
-
-    /* pull filtered pictures from the filtergraph */
-    AVFilterBufferRef *picref = NULL;
-    assert(avfilter_poll_frame(tc->filter_sink->inputs[0]));
-    r = avfilter_request_frame(tc->filter_sink->inputs[0]);
-    if (r == 0)
-        picref = tc->filter_sink->inputs[0]->cur_buf;
-
-    if (picref) {
-        write_video_frame(tc, picref);
-        avfilter_unref_buffer(picref);
-    }
 
     av_free(pFrame);
     av_free_packet(&packet);
@@ -367,30 +357,52 @@ static int tc_write_encoded(Transcoder *tc, int pkt_size) {
     return ret;
 }
 
-static int write_video_frame(Transcoder *tc, AVFilterBufferRef *picref)
-{
-    int out_size, ret;
+/**
+ * @return 0 on success, <0 on fatal error, 1 on non-fatal error
+ */
+static int tc_process_frame_output(Transcoder *tc) {
+    int r;
+    int out_size;
+
+    /* pull filtered pictures from the filtergraph */
+    AVFilterBufferRef *picref = NULL;
+    r = avfilter_poll_frame(tc->filter_sink->inputs[0]);
+    if (r < 0) {
+        fprintf(stderr, "avfilter_poll_frame fail %d\n", r);
+        return -1;
+    }
+    if (r == 0) {
+        printf("avfilter_poll_frame: no frames available\n");
+        return 0;
+    }
+
+    r = avfilter_request_frame(tc->filter_sink->inputs[0]);
+    if (r) {
+        fprintf(stderr, "avfilter_request_frame fail %d\n", r);
+        return -1;
+    }
+
+    picref = tc->filter_sink->inputs[0]->cur_buf;
+    assert(picref);
 
     AVFrame *picture = avcodec_alloc_frame();
     assert(picture);
-    ret = avfilter_fill_frame_from_video_buffer_ref(picture, picref);
-    assert(ret == 0);
+    r = avfilter_fill_frame_from_video_buffer_ref(picture, picref);
+    assert(r == 0);
     picture->pts = picref->pts;
-    printf("encoding with pts %"PRId64", pict_type %d\n", picture->pts, picture->pict_type);
     /* encode the image */
     out_size = avcodec_encode_video(tc->enc, tc->video_outbuf, tc->video_outbuf_size, picture);
+    avfilter_unref_buffer(picref);
 
     /* if zero size, it means the image was buffered */
-    if (out_size > 0) {
-        ret = tc_write_encoded(tc, out_size);
-    } else {
-        //printf("out_size=%d\n", out_size);
-        ret = 0;
-        //printf("should this ever happen?\n");
+    if (out_size == 0) {
+        printf("encoded frame, no data out, filling encoder buffer\n");
+        return 0;
     }
-    if (ret != 0) {
+    r = tc_write_encoded(tc, out_size);
+    if (r) {
         fprintf(stderr, "Error while writing video frame\n");
-        return 1;
+        return -1;
     }
     return 0;
 }
@@ -582,11 +594,26 @@ int setup_filters(Transcoder *tc) {
     return 0;
 }
 
+/**
+ * @return 0 on success, <0 on fatal error, 1 on non-fatal error
+ */
 int tc_process_frame(Transcoder *tc, unsigned int i) {
-    return open_image_and_push_video_frame(&tc->frames[i], tc);
+    int r;
+    r = tc_process_frame_input(tc, i);
+    if (r) {
+        fprintf(stderr, "tc_process_frame_input fail\n");
+        return r;
+    }
+    r = tc_process_frame_output(tc);
+    if (r) {
+        fprintf(stderr, "tc_process_frame_output fail\n");
+        return r;
+    }
+    return 0;
 }
 
 int tc_flush_encoder(Transcoder *tc) {
+    // TODO flush filter
     int r;
     while (1) {
         /* flush buffered remainings */
