@@ -347,6 +347,26 @@ static int init_sizes(Transcoder *tc, const char* imageFileName) {
     return 0;
 }
 
+static int tc_write_encoded(Transcoder *tc, int pkt_size) {
+    int ret;
+    // write from internal buffer
+    AVPacket pkt;
+    av_init_packet(&pkt);
+
+    pkt.pts = tc->frames_out++ * tc->pts_step;
+    pkt.dts = pkt.pts;
+    pkt.duration = tc->pts_step;
+    if(tc->enc->coded_frame->key_frame)
+        pkt.flags |= AV_PKT_FLAG_KEY;
+    pkt.data = tc->video_outbuf;
+    pkt.size = pkt_size;
+
+    /* write the compressed frame in the media file */
+    ret = av_interleaved_write_frame(tc->out, &pkt);
+    av_free_packet(&pkt);
+    return ret;
+}
+
 static int write_video_frame(Transcoder *tc, AVFilterBufferRef *picref)
 {
     int out_size, ret;
@@ -362,20 +382,7 @@ static int write_video_frame(Transcoder *tc, AVFilterBufferRef *picref)
 
     /* if zero size, it means the image was buffered */
     if (out_size > 0) {
-        AVPacket pkt;
-        av_init_packet(&pkt);
-
-        pkt.pts = tc->frames_out++ * tc->pts_step;
-        pkt.dts = pkt.pts;
-        pkt.duration = tc->pts_step;
-        if(tc->enc->coded_frame->key_frame)
-            pkt.flags |= AV_PKT_FLAG_KEY;
-        pkt.data= tc->video_outbuf;
-        pkt.size= out_size;
-
-        /* write the compressed frame in the media file */
-        ret = av_interleaved_write_frame(tc->out, &pkt);
-        av_free_packet(&pkt);
+        ret = tc_write_encoded(tc, out_size);
     } else {
         //printf("out_size=%d\n", out_size);
         ret = 0;
@@ -586,22 +593,7 @@ int tc_flush_encoder(Transcoder *tc) {
         r = avcodec_encode_video(tc->enc, tc->video_outbuf, tc->video_outbuf_size, NULL);
         if (r <= 0)
             break;
-        AVPacket pkt;
-        av_init_packet(&pkt);
-        pkt.pts = tc->frames_out++ * tc->pts_step;
-        pkt.dts = pkt.pts;
-        pkt.duration = tc->pts_step;
-        printf("pkt.pts %"PRId64"\n", pkt.pts);
-        if(tc->enc->coded_frame->key_frame)
-            pkt.flags |= AV_PKT_FLAG_KEY;
-        pkt.stream_index= 0;
-        pkt.data= tc->video_outbuf;
-        pkt.size= r;
-
-        /* write the compressed frame in the media file */
-        r = av_interleaved_write_frame(tc->out, &pkt);
-        assert(r == 0);
-        av_free_packet(&pkt);
+        tc_write_encoded(tc, r);
     }
     return 0;
 }
