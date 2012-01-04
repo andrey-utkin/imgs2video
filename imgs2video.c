@@ -243,15 +243,14 @@ int open_image_and_push_video_frame(struct img *img, Transcoder *tc) {
 
     /* pull filtered pictures from the filtergraph */
     AVFilterBufferRef *picref = NULL;
-    while (avfilter_poll_frame(tc->filter_sink->inputs[0])) {
-        r = avfilter_request_frame(tc->filter_sink->inputs[0]);
-        if (r == 0)
-            picref = tc->filter_sink->inputs[0]->cur_buf;
+    assert(avfilter_poll_frame(tc->filter_sink->inputs[0]));
+    r = avfilter_request_frame(tc->filter_sink->inputs[0]);
+    if (r == 0)
+        picref = tc->filter_sink->inputs[0]->cur_buf;
 
-        if (picref) {
-            write_video_frame(tc, picref);
-            avfilter_unref_buffer(picref);
-        }
+    if (picref) {
+        write_video_frame(tc, picref);
+        avfilter_unref_buffer(picref);
     }
 
     av_free(pFrame);
@@ -297,8 +296,7 @@ char *get_some_pic(const char *dirname) {
     return ret;
 }
 
-void init_sizes(Transcoder *tc, const char* imageFileName) {
-    // FIXME eliminate unnecessary actions. File open must be enough
+static int init_sizes(Transcoder *tc, const char* imageFileName) {
     AVFormatContext *pFormatCtx = NULL;
     AVCodecContext *pCodecCtx;
     AVCodec *pCodec;
@@ -309,7 +307,7 @@ void init_sizes(Transcoder *tc, const char* imageFileName) {
 
     if(avformat_open_input(&pFormatCtx, imageFileName, NULL, 0)) {
         printf("Can't open image file '%s'\n", imageFileName);
-        exit(1);
+        return 1;
     }
     //dump_format(pFormatCtx, 0, imageFileName, 0);
     pCodecCtx = pFormatCtx->streams[0]->codec;
@@ -318,19 +316,19 @@ void init_sizes(Transcoder *tc, const char* imageFileName) {
     pCodec = avcodec_find_decoder(pCodecCtx->codec_id);
     if (!pCodec) {
         printf("Codec not found\n");
-        exit(1);
+        return 1;
     }
 
     // Open codec
     if(avcodec_open2(pCodecCtx, pCodec, NULL)<0) {
         printf("Could not open codec\n");
-        exit(1);
+        return 1;
     }
 
     pFrame = avcodec_alloc_frame();
     if (!pFrame) {
         printf("Can't allocate memory for AVFrame\n");
-        exit(1);
+        return 1;
     }
 
     r = av_read_frame(pFormatCtx, &packet);
@@ -342,10 +340,9 @@ void init_sizes(Transcoder *tc, const char* imageFileName) {
     tc->width = pCodecCtx->width;
     tc->height = pCodecCtx->height;
 
-    av_free(pFrame);
-    av_free_packet(&packet);
     avcodec_close(pCodecCtx);
     av_close_input_file(pFormatCtx);
+    return 0;
 }
 
 static int write_video_frame(Transcoder *tc, AVFilterBufferRef *picref)
@@ -398,10 +395,13 @@ int global_init(void) {
 
 int probe(Transcoder *tc) {
     char *tmp;
+    int r;
     tmp = get_some_pic(tc->args.images_dir_arg);
     if (!tmp)
         return 1;
-    init_sizes(tc, tmp);
+    r = init_sizes(tc, tmp);
+    if (r)
+        return r;
     free(tmp);
     return 0;
 }
