@@ -233,7 +233,6 @@ int tc_process_frame_input(Transcoder *tc, unsigned int i) {
         printf("Failed to decode image\n");
         goto fail_decode;
     }
-    pFrame->quality = 1; // WTF?
     pFrame->pts = tc->frames_in++; // for encoding, pts step must be exactly 1
     pFrame->pict_type = 0; /* let codec choose */
 
