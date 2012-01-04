@@ -27,6 +27,10 @@ struct img {
 
 struct transcoder {
     struct args args;
+    struct img *files;
+    unsigned int n_files;
+    struct img *frames;
+    unsigned int n_frames;
     AVFormatContext *out;
     AVCodecContext *enc;
     AVFilterContext *filter_src;
@@ -121,7 +125,7 @@ int transform_frames_chain(Transcoder *tc, struct img *array, unsigned int n, st
     return n_frames;
 }
 
-int imgs_names_durations(Transcoder *tc, struct img **arg) {
+int imgs_names_durations(Transcoder *tc) {
     const char *dir = tc->args.images_dir_arg;
 
     /*
@@ -132,11 +136,9 @@ int imgs_names_durations(Transcoder *tc, struct img **arg) {
 
     struct dirent **namelist;
     struct stat st;
-    struct img *array;
     char *cwd;
     int i;
     int r;
-    int n;
 
     cwd = getcwd(NULL, 0);
     assert(cwd);
@@ -146,36 +148,36 @@ int imgs_names_durations(Transcoder *tc, struct img **arg) {
         exit(1);
     }
 
-    n = scandir(".", &namelist, filter_jpg, compare_mod_dates);
-    assert(n >= 0);
+    tc->n_files = scandir(".", &namelist, filter_jpg, compare_mod_dates);
+    if (tc->n_files == 0) {
+        fprintf(stderr, "source dir contains no suitable files\n");
+        return 1;
+    }
 
     r = chdir(cwd);
-    if (r) {
-        fprintf(stderr, "Failed to chdir back to '%s': errno %d\n", cwd, errno);
-        exit(1);
-    }
+    assert(!r);
 
-    array = calloc(n, sizeof(struct img));
+    tc->files = calloc(tc->n_files, sizeof(struct img));
 
-    for (i = 0; i < n; i++) {
-        asprintf(&array[i].filename, "%s/%s", dir, namelist[i]->d_name);
+    for (i = 0; i < tc->n_files; i++) {
+        asprintf(&tc->files[i].filename, "%s/%s", dir, namelist[i]->d_name);
         free(namelist[i]);
-        r = stat(array[i].filename, &st);
+        r = stat(tc->files[i].filename, &st);
         if (r != 0) {
             printf("stat for '%s' failed: ret %d, errno %d '%s'\n",
-                    array[i].filename, r, errno, strerror(errno));
-            exit(1);
+                    tc->files[i].filename, r, errno, strerror(errno));
+            return 1;
         }
-        array[i].ts = st.st_mtime;
+        tc->files[i].ts = st.st_mtime;
         if (i > 0)
-            array[i].duration = array[i].ts - array[i-1].ts;
-        //printf("%s %u\n", array[i].filename, array[i].duration);
+            tc->files[i].duration = tc->files[i].ts - tc->files[i-1].ts;
+        //printf("%s %u\n", tc->files[i].filename, tc->files[i].duration);
     }
     free(namelist);
-    printf("%d images\n", n);
-    n = transform_frames_chain(tc, array, n, arg);
-    printf("%d frames\n", n);
-    return n;
+    printf("%d images\n", tc->n_files);
+    tc->n_frames = transform_frames_chain(tc, tc->files, tc->n_files, &tc->frames);
+    printf("%d frames\n", tc->n_frames);
+    return 0;
 }
 
 /* http://stackoverflow.com/questions/3527584/ffmpeg-jpeg-file-to-avframe */
@@ -393,6 +395,15 @@ int global_init(void) {
     return 0;
 }
 
+int tc_build_frames_table(Transcoder *tc) {
+    int r;
+    tc->pts_step = FMT_TIMEBASE_DEN / tc->args.frame_rate_arg;
+    r = imgs_names_durations(tc);
+    if (r)
+        return r;
+    return 0;
+}
+
 int probe(Transcoder *tc) {
     char *tmp;
     int r;
@@ -567,9 +578,7 @@ int setup_filters(Transcoder *tc) {
 int main(int argc, char **argv) {
     int r;
     Transcoder *tc;
-    struct img *array;
     int i;
-    int n;
 
     r = global_init();
     assert(!r);
@@ -577,7 +586,16 @@ int main(int argc, char **argv) {
     tc = calloc(1, sizeof(*tc));
     assert(tc);
 
+
     r = cmdline_parser(argc, argv, &tc->args);
+    if (r) {
+        cmdline_parser_print_help();
+        return r;
+    }
+
+    r = tc_build_frames_table(tc);
+    if (r)
+        return r;
 
     // recognize dimensions
     r = probe(tc);
@@ -585,8 +603,6 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Probing fail\n");
         return r;
     }
-
-    tc->pts_step = FMT_TIMEBASE_DEN / tc->args.frame_rate_arg;
 
     r = open_out(tc);
     if (r) {
@@ -606,22 +622,19 @@ int main(int argc, char **argv) {
         return r;
     }
 
-    n = imgs_names_durations(tc, &array);
-    assert(n > 0);
-
     r = avformat_write_header(tc->out, NULL);
     if (r) {
         fprintf(stderr, "write out file fail\n");
         return r;
     }
 
-    for(i = 0; i < n; i++) {
-        printf("processing frame %d/%d\n", i, n);
+    for(i = 0; i < tc->n_frames; i++) {
+        printf("processing frame %d/%d\n", i, tc->n_frames);
         if (i > 0)
-            assert(array[i].ts > array[i-1].ts);
-        r = open_image_and_push_video_frame(&array[i], tc);
+            assert(tc->frames[i].ts > tc->frames[i-1].ts);
+        r = open_image_and_push_video_frame(&tc->frames[i], tc);
         if (r) {
-            fprintf(stderr, "Processing file %s/%s failed, throw away and proceed\n", tc->args.images_dir_arg, array[i].filename);
+            fprintf(stderr, "Processing file %s/%s failed, throw away and proceed\n", tc->args.images_dir_arg, tc->frames[i].filename);
         }
     }
     while (1) {
