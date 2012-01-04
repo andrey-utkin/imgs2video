@@ -575,10 +575,41 @@ int setup_filters(Transcoder *tc) {
     return 0;
 }
 
+int tc_process_frame(Transcoder *tc, unsigned int i) {
+    return open_image_and_push_video_frame(&tc->frames[i], tc);
+}
+
+int tc_flush_encoder(Transcoder *tc) {
+    int r;
+    while (1) {
+        /* flush buffered remainings */
+        r = avcodec_encode_video(tc->enc, tc->video_outbuf, tc->video_outbuf_size, NULL);
+        if (r <= 0)
+            break;
+        AVPacket pkt;
+        av_init_packet(&pkt);
+        pkt.pts = tc->frames_out++ * tc->pts_step;
+        pkt.dts = pkt.pts;
+        pkt.duration = tc->pts_step;
+        printf("pkt.pts %"PRId64"\n", pkt.pts);
+        if(tc->enc->coded_frame->key_frame)
+            pkt.flags |= AV_PKT_FLAG_KEY;
+        pkt.stream_index= 0;
+        pkt.data= tc->video_outbuf;
+        pkt.size= r;
+
+        /* write the compressed frame in the media file */
+        r = av_interleaved_write_frame(tc->out, &pkt);
+        assert(r == 0);
+        av_free_packet(&pkt);
+    }
+    return 0;
+}
+
 int main(int argc, char **argv) {
     int r;
     Transcoder *tc;
-    int i;
+    unsigned int i;
 
     r = global_init();
     assert(!r);
@@ -632,33 +663,16 @@ int main(int argc, char **argv) {
         printf("processing frame %d/%d\n", i, tc->n_frames);
         if (i > 0)
             assert(tc->frames[i].ts > tc->frames[i-1].ts);
-        r = open_image_and_push_video_frame(&tc->frames[i], tc);
+        r = tc_process_frame(tc, i);
+        if (r < 0) {
+            fprintf(stderr, "Fatal error processing frame, aborting\n");
+            break;
+        }
         if (r) {
             fprintf(stderr, "Processing file %s/%s failed, throw away and proceed\n", tc->args.images_dir_arg, tc->frames[i].filename);
         }
     }
-    while (1) {
-        /* flush buffered remainings */
-        r = avcodec_encode_video(tc->enc, tc->video_outbuf, tc->video_outbuf_size, NULL);
-        if (r <= 0)
-            break;
-        AVPacket pkt;
-        av_init_packet(&pkt);
-        pkt.pts = tc->frames_out++ * tc->pts_step;
-        pkt.dts = pkt.pts;
-        pkt.duration = tc->pts_step;
-        printf("pkt.pts %"PRId64"\n", pkt.pts);
-        if(tc->enc->coded_frame->key_frame)
-            pkt.flags |= AV_PKT_FLAG_KEY;
-        pkt.stream_index= 0;
-        pkt.data= tc->video_outbuf;
-        pkt.size= r;
-
-        /* write the compressed frame in the media file */
-        r = av_interleaved_write_frame(tc->out, &pkt);
-        assert(r == 0);
-        av_free_packet(&pkt);
-    }
+    tc_flush_encoder(tc);
 
     av_write_trailer(tc->out);
     av_dump_format(tc->out, 0, tc->args.output_file_arg, 1);
