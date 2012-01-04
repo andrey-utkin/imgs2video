@@ -150,6 +150,8 @@ int tc_build_frames_table(Transcoder *tc) {
     r = imgs_names_durations(tc);
     if (r)
         return r;
+    tc->n_frames = transform_frames_chain(tc, tc->files, tc->n_files, &tc->frames);
+    printf("%d frames\n", tc->n_frames);
     return 0;
 }
 
@@ -722,8 +724,6 @@ int imgs_names_durations(Transcoder *tc) {
     }
     free(namelist);
     printf("%d images\n", tc->n_files);
-    tc->n_frames = transform_frames_chain(tc, tc->files, tc->n_files, &tc->frames);
-    printf("%d frames\n", tc->n_frames);
     return 0;
 }
 
