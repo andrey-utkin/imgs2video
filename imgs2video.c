@@ -46,363 +46,92 @@ struct transcoder {
 };
 typedef struct transcoder Transcoder;
 
-int match_postfix_jpg(const char *filename) {
-    char *p = strcasestr(filename, ".jpg");
-    if (!p)
-        return 0;
-    if (!strcasecmp(p, ".jpg"))
-        return 1; // exact postfix match
-    else
-        return 0;
-}
+int global_init(void);
+int tc_build_frames_table(Transcoder *tc);
+int probe(Transcoder *tc);
+int open_out(Transcoder *tc);
+int open_encoder(Transcoder *tc);
+int setup_filters(Transcoder *tc);
+int tc_process_frame(Transcoder *tc, unsigned int i);
+int tc_flush_encoder(Transcoder *tc);
 
-int filter_jpg(const struct dirent *a) {
-    return match_postfix_jpg(a->d_name);
-}
-
-int compare_mod_dates(const struct dirent **a, const struct dirent **b) {
-    struct stat a_stat, b_stat;
+int main(int argc, char **argv) {
     int r;
-    r = stat((*a)->d_name, &a_stat);
-    if (r != 0) {
-        printf("stat for '%s' failed: ret %d, errno %d '%s'\n",
-                (*a)->d_name, r, errno, strerror(errno));
-        exit(1);
-    }
-    r = stat((*b)->d_name, &b_stat);
-    if (r != 0) {
-        printf("stat for '%s' failed: ret %d, errno %d '%s'\n",
-                (*b)->d_name, r, errno, strerror(errno));
-        exit(1);
-    }
+    Transcoder *tc;
+    unsigned int i;
 
-    return a_stat.st_mtime - b_stat.st_mtime;
-}
-
-int transform_frames_chain(Transcoder *tc, struct img *array, unsigned int n, struct img **arg) {
-    // TODO better algo?
-    unsigned idx(struct img *frames, unsigned n_frames, unsigned timestamp) {
-        unsigned best_i = 0;
-        int i;
-        for (i = 0; i < n_frames; i++) {
-            if (FFABS((int64_t)frames[i].ts - (int64_t)timestamp) <
-                    FFABS((int64_t)frames[best_i].ts - (int64_t)timestamp) )
-                best_i = i;
-        }
-        return best_i;
-    }
-    unsigned int realtime_duration = array[n-1].ts - array[0].ts;
-    unsigned int n_frames = realtime_duration * tc->args.frame_rate_arg / tc->args.speedup_coef_arg;
-    struct img *frames = calloc(n_frames, sizeof(struct img));
-    int i, j;
-
-    for (i = 0; i < n_frames; i++) {
-        frames[i].ts = i * tc->pts_step;
-        //printf("frame[%d].ts := %d\n", i, i * pts_step);
-        frames[i].duration = tc->pts_step;
-    }
-
-    frames[0].filename = array[0].filename;
-    frames[n_frames-1].filename = array[n-1].filename;
-
-    for (i = 0; i < n-1; i++) {
-        /* for each image:
-         * set the stop point at the cell in frames[] which is for next image
-         * fill all frames[] from which is for it, up to which is for next
-         */
-        unsigned entry_pos = idx(frames, n_frames, (array[i].ts-array[0].ts) * FMT_TIMEBASE_DEN / tc->args.speedup_coef_arg);
-        unsigned next_entry_pos = idx(frames, n_frames, (array[i+1].ts-array[0].ts) * FMT_TIMEBASE_DEN / tc->args.speedup_coef_arg);
-        //printf("img %d, ts %"PRId64", position %d, of next is %d\n", i, (array[i].ts-array[0].ts) * FMT_TIMEBASE_DEN / args.speedup_coef_arg, entry_pos, next_entry_pos);
-        for (j = entry_pos; j < next_entry_pos; j++)
-            frames[j].filename = array[i].filename;
-    }
-
-    for (i = 0; i < n_frames; i++)
-        assert(frames[i].filename);
-
-    *arg = frames;
-    return n_frames;
-}
-
-int imgs_names_durations(Transcoder *tc) {
-    const char *dir = tc->args.images_dir_arg;
-
-    /*
-     * 1. List directory files
-     * 2. Sort by mod date, ascending
-     * 3. Calc intervals
-     */
-
-    struct dirent **namelist;
-    struct stat st;
-    char *cwd;
-    int i;
-    int r;
-
-    cwd = getcwd(NULL, 0);
-    assert(cwd);
-    r = chdir(dir);
-    if (r) {
-        fprintf(stderr, "Failed to chdir to '%s': errno %d\n", dir, errno);
-        exit(1);
-    }
-
-    tc->n_files = scandir(".", &namelist, filter_jpg, compare_mod_dates);
-    if (tc->n_files == 0) {
-        fprintf(stderr, "source dir contains no suitable files\n");
-        return 1;
-    }
-
-    r = chdir(cwd);
+    r = global_init();
     assert(!r);
 
-    tc->files = calloc(tc->n_files, sizeof(struct img));
+    tc = calloc(1, sizeof(*tc));
+    assert(tc);
 
-    for (i = 0; i < tc->n_files; i++) {
-        asprintf(&tc->files[i].filename, "%s/%s", dir, namelist[i]->d_name);
-        free(namelist[i]);
-        r = stat(tc->files[i].filename, &st);
-        if (r != 0) {
-            printf("stat for '%s' failed: ret %d, errno %d '%s'\n",
-                    tc->files[i].filename, r, errno, strerror(errno));
-            return 1;
-        }
-        tc->files[i].ts = st.st_mtime;
+
+    r = cmdline_parser(argc, argv, &tc->args);
+    if (r) {
+        cmdline_parser_print_help();
+        return r;
+    }
+
+    r = tc_build_frames_table(tc);
+    if (r)
+        return r;
+
+    // recognize dimensions
+    r = probe(tc);
+    if (r) {
+        fprintf(stderr, "Probing fail\n");
+        return r;
+    }
+
+    r = open_out(tc);
+    if (r) {
+        fprintf(stderr, "Open out file fail\n");
+        return r;
+    }
+
+    r = open_encoder(tc);
+    if (r) {
+        fprintf(stderr, "Encoder open fail\n");
+        return r;
+    }
+
+    r = setup_filters(tc);
+    if (r) {
+        fprintf(stderr, "Filters setup fail\n");
+        return r;
+    }
+
+    r = avformat_write_header(tc->out, NULL);
+    if (r) {
+        fprintf(stderr, "write out file fail\n");
+        return r;
+    }
+
+    for(i = 0; i < tc->n_frames; i++) {
+        printf("processing frame %d/%d\n", i, tc->n_frames);
         if (i > 0)
-            tc->files[i].duration = tc->files[i].ts - tc->files[i-1].ts;
-        //printf("%s %u\n", tc->files[i].filename, tc->files[i].duration);
-    }
-    free(namelist);
-    printf("%d images\n", tc->n_files);
-    tc->n_frames = transform_frames_chain(tc, tc->files, tc->n_files, &tc->frames);
-    printf("%d frames\n", tc->n_frames);
-    return 0;
-}
-
-/**
- * @return 0 on success, <0 on fatal error, 1 on non-fatal error
- */
-int tc_process_frame_input(Transcoder *tc, unsigned int i) {
-    struct img *img = &tc->frames[i];
-    AVFormatContext *pFormatCtx = NULL;
-    AVCodecContext *pCodecCtx;
-    AVCodec *pCodec;
-    AVFrame *pFrame;
-    AVPacket packet;
-    int r;
-    int frameFinished;
-
-    if(avformat_open_input(&pFormatCtx, img->filename, NULL, 0)) {
-        printf("Can't open image file '%s'\n", img->filename);
-        goto fail_open_file;
-    }
-    //dump_format(pFormatCtx, 0, img->filename, 0);
-    pCodecCtx = pFormatCtx->streams[0]->codec;
-
-    // Find the decoder for the video stream
-    pCodec = avcodec_find_decoder(pCodecCtx->codec_id);
-    if (!pCodec) {
-        printf("Codec not found\n");
-        goto fail_find_decoder;
-    }
-
-    // Open codec
-    if(avcodec_open2(pCodecCtx, pCodec, NULL)<0) {
-        printf("Could not open codec\n");
-        goto fail_avcodec_open;
-    }
-
-    pCodecCtx->width = tc->width;
-    pCodecCtx->height = tc->height;
-    pCodecCtx->pix_fmt = PIX_FMT_YUV420P;
-
-    pFrame = avcodec_alloc_frame();
-    if (!pFrame) {
-        printf("Can't allocate memory for AVFrame\n");
-        goto fail_alloc_frame;
-    }
-
-    r = av_read_frame(pFormatCtx, &packet);
-    if (r < 0) {
-        printf("Failed to read frame\n");
-        goto fail_read_frame;
-    }
-
-    r = avcodec_decode_video2(pCodecCtx, pFrame, &frameFinished, &packet);
-    if (r <= 0) {
-        printf("Failed to decode image\n");
-        goto fail_decode;
-    }
-    pFrame->pts = tc->frames_in++; // for encoding, pts step must be exactly 1
-    pFrame->pict_type = 0; /* let codec choose */
-
-    /* push the decoded frame into the filtergraph */
-#ifdef LIBAV
-    r = av_vsrc_buffer_add_frame(tc->filter_src, pFrame, pFrame->pts, (AVRational){1, 1});
-#else
-    r = av_vsrc_buffer_add_frame(tc->filter_src, pFrame, 0);
-#endif
-    assert(r >= 0);
-
-    av_free(pFrame);
-    av_free_packet(&packet);
-    avcodec_close(pCodecCtx);
-    av_close_input_file(pFormatCtx);
-
-    return 0;
-fail_decode:
-    av_free_packet(&packet);
-fail_read_frame:
-    av_free(pFrame);
-fail_alloc_frame:
-    avcodec_close(pCodecCtx);
-fail_avcodec_open:
-    ;
-fail_find_decoder:
-    av_close_input_file(pFormatCtx);
-fail_open_file:
-    return 1;
-}
-
-char *get_some_pic(const char *dirname) {
-    int r;
-    char *ret;
-    DIR *dir = opendir(dirname);
-    if (!dir) {
-        fprintf(stderr, "dir '%s' not found", dirname);
-        return NULL;
-    }
-    struct dirent *entry;
-    do {
-        entry = readdir(dir);
-        if (!entry) {
-            fprintf(stderr, "no matching files in '%s'!\n", dirname);
-            exit(1);
+            assert(tc->frames[i].ts > tc->frames[i-1].ts);
+        r = tc_process_frame(tc, i);
+        if (r < 0) {
+            fprintf(stderr, "Fatal error processing frame, aborting\n");
+            break;
         }
-    } while(!match_postfix_jpg(entry->d_name));
-    r = asprintf(&ret, "%s/%s", dirname, entry->d_name);
-    assert(r != -1);
-    closedir(dir);
-
-    return ret;
-}
-
-static int init_sizes(Transcoder *tc, const char* imageFileName) {
-    AVFormatContext *pFormatCtx = NULL;
-    AVCodecContext *pCodecCtx;
-    AVCodec *pCodec;
-    AVFrame *pFrame;
-    AVPacket packet;
-    int r;
-    int frameFinished;
-
-    if(avformat_open_input(&pFormatCtx, imageFileName, NULL, 0)) {
-        printf("Can't open image file '%s'\n", imageFileName);
-        return 1;
+        if (r) {
+            fprintf(stderr, "Processing file %s/%s failed, throw away and proceed\n", tc->args.images_dir_arg, tc->frames[i].filename);
+        }
     }
-    //dump_format(pFormatCtx, 0, imageFileName, 0);
-    pCodecCtx = pFormatCtx->streams[0]->codec;
+    tc_flush_encoder(tc);
 
-    // Find the decoder for the video stream
-    pCodec = avcodec_find_decoder(pCodecCtx->codec_id);
-    if (!pCodec) {
-        printf("Codec not found\n");
-        return 1;
-    }
+    av_write_trailer(tc->out);
+    av_dump_format(tc->out, 0, tc->args.output_file_arg, 1);
 
-    // Open codec
-    if(avcodec_open2(pCodecCtx, pCodec, NULL)<0) {
-        printf("Could not open codec\n");
-        return 1;
-    }
+    avcodec_close(tc->enc);
+    av_free(tc->video_outbuf);
+    avio_close(tc->out->pb);
+    avformat_free_context(tc->out);
+    free(tc);
 
-    pFrame = avcodec_alloc_frame();
-    if (!pFrame) {
-        printf("Can't allocate memory for AVFrame\n");
-        return 1;
-    }
-
-    r = av_read_frame(pFormatCtx, &packet);
-    assert(r >= 0);
-
-    r = avcodec_decode_video2(pCodecCtx, pFrame, &frameFinished, &packet);
-    assert(r > 0);
-    printf("File '%s' has width %d, height %d, assuming each pic has same\n", imageFileName, pCodecCtx->width, pCodecCtx->height);
-    tc->width = pCodecCtx->width;
-    tc->height = pCodecCtx->height;
-
-    avcodec_close(pCodecCtx);
-    av_close_input_file(pFormatCtx);
-    return 0;
-}
-
-static int tc_write_encoded(Transcoder *tc, int pkt_size) {
-    int ret;
-    // write from internal buffer
-    AVPacket pkt;
-    av_init_packet(&pkt);
-
-    pkt.pts = tc->frames_out++ * tc->pts_step;
-    pkt.dts = pkt.pts;
-    pkt.duration = tc->pts_step;
-    if(tc->enc->coded_frame->key_frame)
-        pkt.flags |= AV_PKT_FLAG_KEY;
-    pkt.data = tc->video_outbuf;
-    pkt.size = pkt_size;
-
-    /* write the compressed frame in the media file */
-    ret = av_interleaved_write_frame(tc->out, &pkt);
-    av_free_packet(&pkt);
-    return ret;
-}
-
-/**
- * @return 0 on success, <0 on fatal error, 1 on non-fatal error
- */
-static int tc_process_frame_output(Transcoder *tc) {
-    int r;
-    int out_size;
-
-    /* pull filtered pictures from the filtergraph */
-    AVFilterBufferRef *picref = NULL;
-    r = avfilter_poll_frame(tc->filter_sink->inputs[0]);
-    if (r < 0) {
-        fprintf(stderr, "avfilter_poll_frame fail %d\n", r);
-        return -1;
-    }
-    if (r == 0) {
-        printf("avfilter_poll_frame: no frames available\n");
-        return 0;
-    }
-
-    r = avfilter_request_frame(tc->filter_sink->inputs[0]);
-    if (r) {
-        fprintf(stderr, "avfilter_request_frame fail %d\n", r);
-        return -1;
-    }
-
-    picref = tc->filter_sink->inputs[0]->cur_buf;
-    assert(picref);
-
-    AVFrame *picture = avcodec_alloc_frame();
-    assert(picture);
-    r = avfilter_fill_frame_from_video_buffer_ref(picture, picref);
-    assert(r == 0);
-    picture->pts = picref->pts;
-    /* encode the image */
-    out_size = avcodec_encode_video(tc->enc, tc->video_outbuf, tc->video_outbuf_size, picture);
-    avfilter_unref_buffer(picref);
-
-    /* if zero size, it means the image was buffered */
-    if (out_size == 0) {
-        printf("encoded frame, no data out, filling encoder buffer\n");
-        return 0;
-    }
-    r = tc_write_encoded(tc, out_size);
-    if (r) {
-        fprintf(stderr, "Error while writing video frame\n");
-        return -1;
-    }
     return 0;
 }
 
@@ -413,6 +142,8 @@ int global_init(void) {
     return 0;
 }
 
+int imgs_names_durations(Transcoder *tc);
+
 int tc_build_frames_table(Transcoder *tc) {
     int r;
     tc->pts_step = FMT_TIMEBASE_DEN / tc->args.frame_rate_arg;
@@ -421,6 +152,9 @@ int tc_build_frames_table(Transcoder *tc) {
         return r;
     return 0;
 }
+
+char *get_some_pic(const char *dirname);
+static int init_sizes(Transcoder *tc, const char* imageFileName);
 
 int probe(Transcoder *tc) {
     char *tmp;
@@ -593,6 +327,9 @@ int setup_filters(Transcoder *tc) {
     return 0;
 }
 
+int tc_process_frame_input(Transcoder *tc, unsigned int i);
+static int tc_process_frame_output(Transcoder *tc);
+
 /**
  * @return 0 on success, <0 on fatal error, 1 on non-fatal error
  */
@@ -611,6 +348,8 @@ int tc_process_frame(Transcoder *tc, unsigned int i) {
     return 0;
 }
 
+static int tc_write_encoded(Transcoder *tc, int pkt_size);
+
 int tc_flush_encoder(Transcoder *tc) {
     // TODO flush filter
     int r;
@@ -624,82 +363,367 @@ int tc_flush_encoder(Transcoder *tc) {
     return 0;
 }
 
-int main(int argc, char **argv) {
+/**
+ * @return 0 on success, <0 on fatal error, 1 on non-fatal error
+ */
+int tc_process_frame_input(Transcoder *tc, unsigned int i) {
+    struct img *img = &tc->frames[i];
+    AVFormatContext *pFormatCtx = NULL;
+    AVCodecContext *pCodecCtx;
+    AVCodec *pCodec;
+    AVFrame *pFrame;
+    AVPacket packet;
     int r;
-    Transcoder *tc;
-    unsigned int i;
+    int frameFinished;
 
-    r = global_init();
-    assert(!r);
+    if(avformat_open_input(&pFormatCtx, img->filename, NULL, 0)) {
+        printf("Can't open image file '%s'\n", img->filename);
+        goto fail_open_file;
+    }
+    //dump_format(pFormatCtx, 0, img->filename, 0);
+    pCodecCtx = pFormatCtx->streams[0]->codec;
 
-    tc = calloc(1, sizeof(*tc));
-    assert(tc);
-
-
-    r = cmdline_parser(argc, argv, &tc->args);
-    if (r) {
-        cmdline_parser_print_help();
-        return r;
+    // Find the decoder for the video stream
+    pCodec = avcodec_find_decoder(pCodecCtx->codec_id);
+    if (!pCodec) {
+        printf("Codec not found\n");
+        goto fail_find_decoder;
     }
 
-    r = tc_build_frames_table(tc);
-    if (r)
-        return r;
-
-    // recognize dimensions
-    r = probe(tc);
-    if (r) {
-        fprintf(stderr, "Probing fail\n");
-        return r;
+    // Open codec
+    if(avcodec_open2(pCodecCtx, pCodec, NULL)<0) {
+        printf("Could not open codec\n");
+        goto fail_avcodec_open;
     }
 
-    r = open_out(tc);
-    if (r) {
-        fprintf(stderr, "Open out file fail\n");
-        return r;
+    pCodecCtx->width = tc->width;
+    pCodecCtx->height = tc->height;
+    pCodecCtx->pix_fmt = PIX_FMT_YUV420P;
+
+    pFrame = avcodec_alloc_frame();
+    if (!pFrame) {
+        printf("Can't allocate memory for AVFrame\n");
+        goto fail_alloc_frame;
     }
 
-    r = open_encoder(tc);
-    if (r) {
-        fprintf(stderr, "Encoder open fail\n");
-        return r;
+    r = av_read_frame(pFormatCtx, &packet);
+    if (r < 0) {
+        printf("Failed to read frame\n");
+        goto fail_read_frame;
     }
 
-    r = setup_filters(tc);
-    if (r) {
-        fprintf(stderr, "Filters setup fail\n");
-        return r;
+    r = avcodec_decode_video2(pCodecCtx, pFrame, &frameFinished, &packet);
+    if (r <= 0) {
+        printf("Failed to decode image\n");
+        goto fail_decode;
     }
+    pFrame->pts = tc->frames_in++; // for encoding, pts step must be exactly 1
+    pFrame->pict_type = 0; /* let codec choose */
 
-    r = avformat_write_header(tc->out, NULL);
-    if (r) {
-        fprintf(stderr, "write out file fail\n");
-        return r;
-    }
+    /* push the decoded frame into the filtergraph */
+#ifdef LIBAV
+    r = av_vsrc_buffer_add_frame(tc->filter_src, pFrame, pFrame->pts, (AVRational){1, 1});
+#else
+    r = av_vsrc_buffer_add_frame(tc->filter_src, pFrame, 0);
+#endif
+    assert(r >= 0);
 
-    for(i = 0; i < tc->n_frames; i++) {
-        printf("processing frame %d/%d\n", i, tc->n_frames);
-        if (i > 0)
-            assert(tc->frames[i].ts > tc->frames[i-1].ts);
-        r = tc_process_frame(tc, i);
-        if (r < 0) {
-            fprintf(stderr, "Fatal error processing frame, aborting\n");
-            break;
-        }
-        if (r) {
-            fprintf(stderr, "Processing file %s/%s failed, throw away and proceed\n", tc->args.images_dir_arg, tc->frames[i].filename);
-        }
-    }
-    tc_flush_encoder(tc);
-
-    av_write_trailer(tc->out);
-    av_dump_format(tc->out, 0, tc->args.output_file_arg, 1);
-
-    avcodec_close(tc->enc);
-    av_free(tc->video_outbuf);
-    avio_close(tc->out->pb);
-    avformat_free_context(tc->out);
-    free(tc);
+    av_free(pFrame);
+    av_free_packet(&packet);
+    avcodec_close(pCodecCtx);
+    av_close_input_file(pFormatCtx);
 
     return 0;
+fail_decode:
+    av_free_packet(&packet);
+fail_read_frame:
+    av_free(pFrame);
+fail_alloc_frame:
+    avcodec_close(pCodecCtx);
+fail_avcodec_open:
+    ;
+fail_find_decoder:
+    av_close_input_file(pFormatCtx);
+fail_open_file:
+    return 1;
 }
+
+/**
+ * @return 0 on success, <0 on fatal error, 1 on non-fatal error
+ */
+static int tc_process_frame_output(Transcoder *tc) {
+    int r;
+    int out_size;
+
+    /* pull filtered pictures from the filtergraph */
+    AVFilterBufferRef *picref = NULL;
+    r = avfilter_poll_frame(tc->filter_sink->inputs[0]);
+    if (r < 0) {
+        fprintf(stderr, "avfilter_poll_frame fail %d\n", r);
+        return -1;
+    }
+    if (r == 0) {
+        printf("avfilter_poll_frame: no frames available\n");
+        return 0;
+    }
+
+    r = avfilter_request_frame(tc->filter_sink->inputs[0]);
+    if (r) {
+        fprintf(stderr, "avfilter_request_frame fail %d\n", r);
+        return -1;
+    }
+
+    picref = tc->filter_sink->inputs[0]->cur_buf;
+    assert(picref);
+
+    AVFrame *picture = avcodec_alloc_frame();
+    assert(picture);
+    r = avfilter_fill_frame_from_video_buffer_ref(picture, picref);
+    assert(r == 0);
+    picture->pts = picref->pts;
+    /* encode the image */
+    out_size = avcodec_encode_video(tc->enc, tc->video_outbuf, tc->video_outbuf_size, picture);
+    avfilter_unref_buffer(picref);
+
+    /* if zero size, it means the image was buffered */
+    if (out_size == 0) {
+        printf("encoded frame, no data out, filling encoder buffer\n");
+        return 0;
+    }
+    r = tc_write_encoded(tc, out_size);
+    if (r) {
+        fprintf(stderr, "Error while writing video frame\n");
+        return -1;
+    }
+    return 0;
+}
+
+static int tc_write_encoded(Transcoder *tc, int pkt_size) {
+    int ret;
+    // write from internal buffer
+    AVPacket pkt;
+    av_init_packet(&pkt);
+
+    pkt.pts = tc->frames_out++ * tc->pts_step;
+    pkt.dts = pkt.pts;
+    pkt.duration = tc->pts_step;
+    if(tc->enc->coded_frame->key_frame)
+        pkt.flags |= AV_PKT_FLAG_KEY;
+    pkt.data = tc->video_outbuf;
+    pkt.size = pkt_size;
+
+    /* write the compressed frame in the media file */
+    ret = av_interleaved_write_frame(tc->out, &pkt);
+    av_free_packet(&pkt);
+    return ret;
+}
+
+
+int match_postfix_jpg(const char *filename);
+
+char *get_some_pic(const char *dirname) {
+    int r;
+    char *ret;
+    DIR *dir = opendir(dirname);
+    if (!dir) {
+        fprintf(stderr, "dir '%s' not found", dirname);
+        return NULL;
+    }
+    struct dirent *entry;
+    do {
+        entry = readdir(dir);
+        if (!entry) {
+            fprintf(stderr, "no matching files in '%s'!\n", dirname);
+            exit(1);
+        }
+    } while(!match_postfix_jpg(entry->d_name));
+    r = asprintf(&ret, "%s/%s", dirname, entry->d_name);
+    assert(r != -1);
+    closedir(dir);
+
+    return ret;
+}
+
+static int init_sizes(Transcoder *tc, const char* imageFileName) {
+    AVFormatContext *pFormatCtx = NULL;
+    AVCodecContext *pCodecCtx;
+    AVCodec *pCodec;
+    AVFrame *pFrame;
+    AVPacket packet;
+    int r;
+    int frameFinished;
+
+    if(avformat_open_input(&pFormatCtx, imageFileName, NULL, 0)) {
+        printf("Can't open image file '%s'\n", imageFileName);
+        return 1;
+    }
+    //dump_format(pFormatCtx, 0, imageFileName, 0);
+    pCodecCtx = pFormatCtx->streams[0]->codec;
+
+    // Find the decoder for the video stream
+    pCodec = avcodec_find_decoder(pCodecCtx->codec_id);
+    if (!pCodec) {
+        printf("Codec not found\n");
+        return 1;
+    }
+
+    // Open codec
+    if(avcodec_open2(pCodecCtx, pCodec, NULL)<0) {
+        printf("Could not open codec\n");
+        return 1;
+    }
+
+    pFrame = avcodec_alloc_frame();
+    if (!pFrame) {
+        printf("Can't allocate memory for AVFrame\n");
+        return 1;
+    }
+
+    r = av_read_frame(pFormatCtx, &packet);
+    assert(r >= 0);
+
+    r = avcodec_decode_video2(pCodecCtx, pFrame, &frameFinished, &packet);
+    assert(r > 0);
+    printf("File '%s' has width %d, height %d, assuming each pic has same\n", imageFileName, pCodecCtx->width, pCodecCtx->height);
+    tc->width = pCodecCtx->width;
+    tc->height = pCodecCtx->height;
+
+    avcodec_close(pCodecCtx);
+    av_close_input_file(pFormatCtx);
+    return 0;
+}
+
+
+int match_postfix_jpg(const char *filename) {
+    char *p = strcasestr(filename, ".jpg");
+    if (!p)
+        return 0;
+    if (!strcasecmp(p, ".jpg"))
+        return 1; // exact postfix match
+    else
+        return 0;
+}
+
+int filter_jpg(const struct dirent *a) {
+    return match_postfix_jpg(a->d_name);
+}
+
+int compare_mod_dates(const struct dirent **a, const struct dirent **b) {
+    struct stat a_stat, b_stat;
+    int r;
+    r = stat((*a)->d_name, &a_stat);
+    if (r != 0) {
+        printf("stat for '%s' failed: ret %d, errno %d '%s'\n",
+                (*a)->d_name, r, errno, strerror(errno));
+        exit(1);
+    }
+    r = stat((*b)->d_name, &b_stat);
+    if (r != 0) {
+        printf("stat for '%s' failed: ret %d, errno %d '%s'\n",
+                (*b)->d_name, r, errno, strerror(errno));
+        exit(1);
+    }
+
+    return a_stat.st_mtime - b_stat.st_mtime;
+}
+
+int transform_frames_chain(Transcoder *tc, struct img *array, unsigned int n, struct img **arg) {
+    // TODO better algo?
+    unsigned idx(struct img *frames, unsigned n_frames, unsigned timestamp) {
+        unsigned best_i = 0;
+        int i;
+        for (i = 0; i < n_frames; i++) {
+            if (FFABS((int64_t)frames[i].ts - (int64_t)timestamp) <
+                    FFABS((int64_t)frames[best_i].ts - (int64_t)timestamp) )
+                best_i = i;
+        }
+        return best_i;
+    }
+    unsigned int realtime_duration = array[n-1].ts - array[0].ts;
+    unsigned int n_frames = realtime_duration * tc->args.frame_rate_arg / tc->args.speedup_coef_arg;
+    struct img *frames = calloc(n_frames, sizeof(struct img));
+    int i, j;
+
+    for (i = 0; i < n_frames; i++) {
+        frames[i].ts = i * tc->pts_step;
+        //printf("frame[%d].ts := %d\n", i, i * pts_step);
+        frames[i].duration = tc->pts_step;
+    }
+
+    frames[0].filename = array[0].filename;
+    frames[n_frames-1].filename = array[n-1].filename;
+
+    for (i = 0; i < n-1; i++) {
+        /* for each image:
+         * set the stop point at the cell in frames[] which is for next image
+         * fill all frames[] from which is for it, up to which is for next
+         */
+        unsigned entry_pos = idx(frames, n_frames, (array[i].ts-array[0].ts) * FMT_TIMEBASE_DEN / tc->args.speedup_coef_arg);
+        unsigned next_entry_pos = idx(frames, n_frames, (array[i+1].ts-array[0].ts) * FMT_TIMEBASE_DEN / tc->args.speedup_coef_arg);
+        //printf("img %d, ts %"PRId64", position %d, of next is %d\n", i, (array[i].ts-array[0].ts) * FMT_TIMEBASE_DEN / args.speedup_coef_arg, entry_pos, next_entry_pos);
+        for (j = entry_pos; j < next_entry_pos; j++)
+            frames[j].filename = array[i].filename;
+    }
+
+    for (i = 0; i < n_frames; i++)
+        assert(frames[i].filename);
+
+    *arg = frames;
+    return n_frames;
+}
+
+int imgs_names_durations(Transcoder *tc) {
+    const char *dir = tc->args.images_dir_arg;
+
+    /*
+     * 1. List directory files
+     * 2. Sort by mod date, ascending
+     * 3. Calc intervals
+     */
+
+    struct dirent **namelist;
+    struct stat st;
+    char *cwd;
+    int i;
+    int r;
+
+    cwd = getcwd(NULL, 0);
+    assert(cwd);
+    r = chdir(dir);
+    if (r) {
+        fprintf(stderr, "Failed to chdir to '%s': errno %d\n", dir, errno);
+        exit(1);
+    }
+
+    tc->n_files = scandir(".", &namelist, filter_jpg, compare_mod_dates);
+    if (tc->n_files == 0) {
+        fprintf(stderr, "source dir contains no suitable files\n");
+        return 1;
+    }
+
+    r = chdir(cwd);
+    assert(!r);
+
+    tc->files = calloc(tc->n_files, sizeof(struct img));
+
+    for (i = 0; i < tc->n_files; i++) {
+        asprintf(&tc->files[i].filename, "%s/%s", dir, namelist[i]->d_name);
+        free(namelist[i]);
+        r = stat(tc->files[i].filename, &st);
+        if (r != 0) {
+            printf("stat for '%s' failed: ret %d, errno %d '%s'\n",
+                    tc->files[i].filename, r, errno, strerror(errno));
+            return 1;
+        }
+        tc->files[i].ts = st.st_mtime;
+        if (i > 0)
+            tc->files[i].duration = tc->files[i].ts - tc->files[i-1].ts;
+        //printf("%s %u\n", tc->files[i].filename, tc->files[i].duration);
+    }
+    free(namelist);
+    printf("%d images\n", tc->n_files);
+    tc->n_frames = transform_frames_chain(tc, tc->files, tc->n_files, &tc->frames);
+    printf("%d frames\n", tc->n_frames);
+    return 0;
+}
+
