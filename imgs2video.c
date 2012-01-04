@@ -25,23 +25,23 @@ struct img {
     unsigned int duration;
 };
 
-uint8_t *video_outbuf;
-int video_outbuf_size;
-unsigned int frames_out = 0;
+struct transcoder {
+    struct args args;
+    AVFormatContext *out;
+    AVCodecContext *enc;
+    AVFilterContext *filter_src;
+    AVFilterContext *filter_sink;
+    AVFilterGraph *filter_graph;
+    uint8_t *video_outbuf;
+    int video_outbuf_size;
+    unsigned int frames_out;
+    unsigned int pts_step;
+    unsigned int width;
+    unsigned int height;
+};
+typedef struct transcoder Transcoder;
 
-struct args args;
-unsigned int pts_step;
-unsigned int global_width;
-unsigned int global_height;
-
-struct args args;
-unsigned int pts_step;
-
-AVFilterContext *buffersink_ctx;
-AVFilterContext *buffersrc_ctx;
-AVFilterGraph *filter_graph;
-
-static void write_video_frame(AVFormatContext *oc, AVFilterBufferRef *picref);
+static int write_video_frame(Transcoder *tc, AVFilterBufferRef *picref);
 
 int match_postfix_jpg(const char *filename) {
     char *p = strcasestr(filename, ".jpg");
@@ -76,7 +76,7 @@ int compare_mod_dates(const struct dirent **a, const struct dirent **b) {
     return a_stat.st_mtime - b_stat.st_mtime;
 }
 
-int transform_frames_chain(struct img *array, unsigned int n, struct img **arg) {
+int transform_frames_chain(Transcoder *tc, struct img *array, unsigned int n, struct img **arg) {
     // TODO better algo?
     unsigned idx(struct img *frames, unsigned n_frames, unsigned timestamp) {
         unsigned best_i = 0;
@@ -89,14 +89,14 @@ int transform_frames_chain(struct img *array, unsigned int n, struct img **arg) 
         return best_i;
     }
     unsigned int realtime_duration = array[n-1].ts - array[0].ts;
-    unsigned int n_frames = realtime_duration * args.frame_rate_arg / args.speedup_coef_arg;
+    unsigned int n_frames = realtime_duration * tc->args.frame_rate_arg / tc->args.speedup_coef_arg;
     struct img *frames = calloc(n_frames, sizeof(struct img));
     int i, j;
 
     for (i = 0; i < n_frames; i++) {
-        frames[i].ts = i * pts_step;
+        frames[i].ts = i * tc->pts_step;
         //printf("frame[%d].ts := %d\n", i, i * pts_step);
-        frames[i].duration = pts_step;
+        frames[i].duration = tc->pts_step;
     }
 
     frames[0].filename = array[0].filename;
@@ -107,8 +107,8 @@ int transform_frames_chain(struct img *array, unsigned int n, struct img **arg) 
          * set the stop point at the cell in frames[] which is for next image
          * fill all frames[] from which is for it, up to which is for next
          */
-        unsigned entry_pos = idx(frames, n_frames, (array[i].ts-array[0].ts) * FMT_TIMEBASE_DEN / args.speedup_coef_arg);
-        unsigned next_entry_pos = idx(frames, n_frames, (array[i+1].ts-array[0].ts) * FMT_TIMEBASE_DEN / args.speedup_coef_arg);
+        unsigned entry_pos = idx(frames, n_frames, (array[i].ts-array[0].ts) * FMT_TIMEBASE_DEN / tc->args.speedup_coef_arg);
+        unsigned next_entry_pos = idx(frames, n_frames, (array[i+1].ts-array[0].ts) * FMT_TIMEBASE_DEN / tc->args.speedup_coef_arg);
         //printf("img %d, ts %"PRId64", position %d, of next is %d\n", i, (array[i].ts-array[0].ts) * FMT_TIMEBASE_DEN / args.speedup_coef_arg, entry_pos, next_entry_pos);
         for (j = entry_pos; j < next_entry_pos; j++)
             frames[j].filename = array[i].filename;
@@ -121,7 +121,8 @@ int transform_frames_chain(struct img *array, unsigned int n, struct img **arg) 
     return n_frames;
 }
 
-int imgs_names_durations(const char *dir, struct img **arg) {
+int imgs_names_durations(Transcoder *tc, struct img **arg) {
+    const char *dir = tc->args.images_dir_arg;
 
     /*
      * 1. List directory files
@@ -172,13 +173,13 @@ int imgs_names_durations(const char *dir, struct img **arg) {
     }
     free(namelist);
     printf("%d images\n", n);
-    n = transform_frames_chain(array, n, arg);
+    n = transform_frames_chain(tc, array, n, arg);
     printf("%d frames\n", n);
     return n;
 }
 
 /* http://stackoverflow.com/questions/3527584/ffmpeg-jpeg-file-to-avframe */
-int open_image_and_push_video_frame(struct img *img, AVFormatContext *video_output) {
+int open_image_and_push_video_frame(struct img *img, Transcoder *tc) {
     AVFormatContext *pFormatCtx = NULL;
     AVCodecContext *pCodecCtx;
     AVCodec *pCodec;
@@ -207,8 +208,8 @@ int open_image_and_push_video_frame(struct img *img, AVFormatContext *video_outp
         goto fail_avcodec_open;
     }
 
-    pCodecCtx->width = global_width;
-    pCodecCtx->height = global_height;
+    pCodecCtx->width = tc->width;
+    pCodecCtx->height = tc->height;
     pCodecCtx->pix_fmt = PIX_FMT_YUV420P;
 
     pFrame = avcodec_alloc_frame();
@@ -229,26 +230,26 @@ int open_image_and_push_video_frame(struct img *img, AVFormatContext *video_outp
         goto fail_decode;
     }
     pFrame->quality = 1;
-    pFrame->pts = img->ts / pts_step; // for encoding, pts step must be exactly 1
+    pFrame->pts = img->ts / tc->pts_step; // for encoding, pts step must be exactly 1
     pFrame->pict_type = 0; /* let codec choose */
 
     /* push the decoded frame into the filtergraph */
 #ifdef LIBAV
-    r = av_vsrc_buffer_add_frame(buffersrc_ctx, pFrame, pFrame->pts, (AVRational){1, 1});
+    r = av_vsrc_buffer_add_frame(tc->filter_src, pFrame, pFrame->pts, (AVRational){1, 1});
 #else
-    r = av_vsrc_buffer_add_frame(buffersrc_ctx, pFrame, 0);
+    r = av_vsrc_buffer_add_frame(tc->filter_src, pFrame, 0);
 #endif
     assert(r >= 0);
 
     /* pull filtered pictures from the filtergraph */
     AVFilterBufferRef *picref = NULL;
-    while (avfilter_poll_frame(buffersink_ctx->inputs[0])) {
-        r = avfilter_request_frame(buffersink_ctx->inputs[0]);
+    while (avfilter_poll_frame(tc->filter_sink->inputs[0])) {
+        r = avfilter_request_frame(tc->filter_sink->inputs[0]);
         if (r == 0)
-            picref = buffersink_ctx->inputs[0]->cur_buf;
+            picref = tc->filter_sink->inputs[0]->cur_buf;
 
         if (picref) {
-            write_video_frame(video_output, picref);
+            write_video_frame(tc, picref);
             avfilter_unref_buffer(picref);
         }
     }
@@ -296,7 +297,8 @@ char *get_some_pic(const char *dirname) {
     return ret;
 }
 
-void init_sizes(const char* imageFileName) {
+void init_sizes(Transcoder *tc, const char* imageFileName) {
+    // FIXME eliminate unnecessary actions. File open must be enough
     AVFormatContext *pFormatCtx = NULL;
     AVCodecContext *pCodecCtx;
     AVCodec *pCodec;
@@ -337,8 +339,8 @@ void init_sizes(const char* imageFileName) {
     r = avcodec_decode_video2(pCodecCtx, pFrame, &frameFinished, &packet);
     assert(r > 0);
     printf("File '%s' has width %d, height %d, assuming each pic has same\n", imageFileName, pCodecCtx->width, pCodecCtx->height);
-    global_width = pCodecCtx->width;
-    global_height = pCodecCtx->height;
+    tc->width = pCodecCtx->width;
+    tc->height = pCodecCtx->height;
 
     av_free(pFrame);
     av_free_packet(&packet);
@@ -346,93 +348,9 @@ void init_sizes(const char* imageFileName) {
     av_close_input_file(pFormatCtx);
 }
 
-/* add a video output stream */
-static AVStream *add_video_stream(AVFormatContext *oc, enum CodecID codec_id)
+static int write_video_frame(Transcoder *tc, AVFilterBufferRef *picref)
 {
-    AVCodecContext *c;
-    AVStream *st;
-
-    st = avformat_new_stream(oc, avcodec_find_encoder(codec_id));
-    if (!st) {
-        fprintf(stderr, "Could not alloc stream\n");
-        exit(1);
-    }
-
-    st->time_base.den = FMT_TIMEBASE_DEN;
-    st->time_base.num = 1;
-
-    c = st->codec;
-    c->codec_id = codec_id;
-    c->codec_type = AVMEDIA_TYPE_VIDEO;
-
-    st->r_frame_rate.den = 1;
-    st->r_frame_rate.num = args.frame_rate_arg;
-    st->avg_frame_rate.den = 1;
-    st->avg_frame_rate.num = args.frame_rate_arg;
-
-    /* resolution must be a multiple of two */
-    c->width = global_width;
-    c->height = global_height;
-    /* time base: this is the fundamental unit of time (in seconds) in terms
-       of which frame timestamps are represented. for fixed-fps content,
-       timebase should be 1/framerate and timestamp increments should be
-       identically 1. */
-
-    c->time_base.den = args.frame_rate_arg;
-    c->time_base.num = 1;
-    c->pix_fmt = PIX_FMT_YUV420P;
-
-    if(oc->oformat->flags & AVFMT_GLOBALHEADER)
-        c->flags |= CODEC_FLAG_GLOBAL_HEADER;
-
-    st->sample_aspect_ratio.den = 1;
-    st->sample_aspect_ratio.num = 1;
-    c->sample_aspect_ratio.den = 1;
-    c->sample_aspect_ratio.num = 1;
-
-    c->bit_rate = args.bitrate_arg;
-    c->bit_rate_tolerance = c->bit_rate / 5;
-    c->thread_count = 0; // use several threads for encoding
-
-    return st;
-}
-
-static void open_video(AVFormatContext *oc, AVStream *st)
-{
-    AVCodec *codec;
-    AVCodecContext *c;
-
-    c = st->codec;
-
-    /* find the video encoder */
-    codec = avcodec_find_encoder(c->codec_id);
-    if (!codec) {
-        fprintf(stderr, "codec not found\n");
-        exit(1);
-    }
-
-    AVDictionary *opts = NULL;
-    if (args.bitrate_arg != 0) // profiles don't support lossless
-        av_dict_set(&opts, "profile", args.profile_arg, 0);
-    else
-        av_dict_set(&opts, "qp", "0", 0);
-    av_dict_set(&opts, "preset", args.preset_arg, 0);
-    /* open the codec */
-    if (avcodec_open2(c, codec, &opts) < 0) {
-        fprintf(stderr, "could not open codec\n");
-        exit(1);
-    }
-
-    /* allocate output buffer */
-    video_outbuf_size = 10000000;
-    video_outbuf = av_malloc(video_outbuf_size);
-}
-
-static void write_video_frame(AVFormatContext *oc, AVFilterBufferRef *picref)
-{
-    AVStream *st = oc->streams[0];
     int out_size, ret;
-    AVCodecContext *c = st->codec;
 
     AVFrame *picture = avcodec_alloc_frame();
     assert(picture);
@@ -441,25 +359,23 @@ static void write_video_frame(AVFormatContext *oc, AVFilterBufferRef *picref)
     picture->pts = picref->pts;
     printf("encoding with pts %"PRId64", pict_type %d\n", picture->pts, picture->pict_type);
     /* encode the image */
-    out_size = avcodec_encode_video(c, video_outbuf, video_outbuf_size, picture);
+    out_size = avcodec_encode_video(tc->enc, tc->video_outbuf, tc->video_outbuf_size, picture);
 
     /* if zero size, it means the image was buffered */
     if (out_size > 0) {
         AVPacket pkt;
         av_init_packet(&pkt);
 
-        pkt.pts = frames_out++ * pts_step;
+        pkt.pts = tc->frames_out++ * tc->pts_step;
         pkt.dts = pkt.pts;
-        pkt.duration = pts_step;
-        printf("pkt.pts %"PRId64"\n", pkt.pts);
-        if(c->coded_frame->key_frame)
+        pkt.duration = tc->pts_step;
+        if(tc->enc->coded_frame->key_frame)
             pkt.flags |= AV_PKT_FLAG_KEY;
-        pkt.stream_index= st->index;
-        pkt.data= video_outbuf;
+        pkt.data= tc->video_outbuf;
         pkt.size= out_size;
 
         /* write the compressed frame in the media file */
-        ret = av_interleaved_write_frame(oc, &pkt);
+        ret = av_interleaved_write_frame(tc->out, &pkt);
         av_free_packet(&pkt);
     } else {
         //printf("out_size=%d\n", out_size);
@@ -468,8 +384,9 @@ static void write_video_frame(AVFormatContext *oc, AVFilterBufferRef *picref)
     }
     if (ret != 0) {
         fprintf(stderr, "Error while writing video frame\n");
-        exit(1);
+        return 1;
     }
+    return 0;
 }
 
 int global_init(void) {
@@ -479,82 +396,130 @@ int global_init(void) {
     return 0;
 }
 
-int main(int argc, char **argv) {
-    int r;
-    struct img *array;
-    AVOutputFormat *fmt;
-    AVFormatContext *oc;
-    AVStream *video_st = NULL;
-    int i;
-    int n;
-
-    r = global_init();
-    assert(!r);
-
-    r = cmdline_parser(argc, argv, &args);
-
+int probe(Transcoder *tc) {
     char *tmp;
-    tmp = get_some_pic(args.images_dir_arg);
+    tmp = get_some_pic(tc->args.images_dir_arg);
     if (!tmp)
         return 1;
-    init_sizes(tmp);
+    init_sizes(tc, tmp);
     free(tmp);
+    return 0;
+}
 
-    pts_step = FMT_TIMEBASE_DEN / args.frame_rate_arg;
-
+int open_out(Transcoder *tc) {
     /* auto detect the output format from the name. default is
        mpeg. */
-    fmt = av_guess_format(NULL, args.output_file_arg, NULL);
-    if (!fmt) {
-        printf("Could not deduce output format from file extension: using MPEG.\n");
-        fmt = av_guess_format("mpeg", NULL, NULL);
-    }
+    AVOutputFormat *fmt;
+    fmt = av_guess_format(NULL, tc->args.output_file_arg, NULL);
     if (!fmt) {
         fprintf(stderr, "Could not find suitable output format\n");
-        exit(1);
+        return 1;
     }
 
     /* allocate the output media context */
-    oc = avformat_alloc_context();
-    if (!oc) {
+    tc->out = avformat_alloc_context();
+    if (!tc->out) {
         fprintf(stderr, "Memory error\n");
-        exit(1);
+        return 1;
     }
-    oc->oformat = fmt;
-    snprintf(oc->filename, sizeof(oc->filename), "%s", args.output_file_arg);
+    tc->out->oformat = fmt;
+    snprintf(tc->out->filename, sizeof(tc->out->filename), "%s", tc->args.output_file_arg);
 
-    /* add the audio and video streams using the default format codecs
-       and initialize the codecs */
-    if (fmt->video_codec == CODEC_ID_NONE) {
+    if (avio_open(&tc->out->pb, tc->out->filename, URL_WRONLY) < 0) {
+        fprintf(stderr, "Could not open '%s'\n", tc->out->filename);
+        return 1;
+    }
+    return 0;
+}
+
+int open_encoder(Transcoder *tc) {
+    if (tc->out->oformat->video_codec == CODEC_ID_NONE) {
         printf("guessed format doesnt assume video?\n");
-        exit(1);
+        return 1;
     }
 
-    fmt->video_codec = (!strcasecmp(args.vcodec_arg, "h264") ? CODEC_ID_H264 : CODEC_ID_FLV1);
-    video_st = add_video_stream(oc, fmt->video_codec);
-    av_dump_format(oc, 0, args.output_file_arg, 1);
-
-    open_video(oc, video_st);
-    if (avio_open(&oc->pb, args.output_file_arg, URL_WRONLY) < 0) {
-        fprintf(stderr, "Could not open '%s'\n", args.output_file_arg);
-        exit(1);
+    AVCodec *codec = avcodec_find_encoder_by_name(tc->args.vcodec_arg);
+    if (!codec) {
+        fprintf(stderr, "Encoder %s not found\n", tc->args.vcodec_arg);
+        return 1;
+    }
+    AVStream *st;
+    st = avformat_new_stream(tc->out, codec);
+    if (!st) {
+        fprintf(stderr, "Could not alloc stream\n");
+        return 1;
     }
 
+    // for flv format, timebase is 1kHz
+    st->time_base.den = FMT_TIMEBASE_DEN; // FIXME hardcode
+    st->time_base.num = 1;
+    st->sample_aspect_ratio.den = 1;
+    st->sample_aspect_ratio.num = 1;
 
-    AVFilter *buffersrc  = avfilter_get_by_name("buffer");
-    AVFilter *buffersink = avfilter_get_by_name("nullsink");
+    tc->enc = st->codec;
+    /* resolution must be a multiple of two */
+    tc->enc->width = tc->width;
+    tc->enc->height = tc->height;
+
+    // for video codecs, at last libx264, timebase must be <framerate> Hz
+    tc->enc->time_base.den = tc->args.frame_rate_arg;
+    tc->enc->time_base.num = 1;
+    tc->enc->pix_fmt = PIX_FMT_YUV420P;
+
+    if(tc->out->oformat->flags & AVFMT_GLOBALHEADER)
+        tc->enc->flags |= CODEC_FLAG_GLOBAL_HEADER;
+
+    tc->enc->sample_aspect_ratio.den = 1;
+    tc->enc->sample_aspect_ratio.num = 1;
+
+    tc->enc->bit_rate = tc->args.bitrate_arg;
+    tc->enc->bit_rate_tolerance = tc->enc->bit_rate / 5;
+    tc->enc->thread_count = 0; // use several threads for encoding
+
+    AVDictionary *opts = NULL;
+    if (tc->args.bitrate_arg != 0) // profiles don't support lossless
+        av_dict_set(&opts, "profile", tc->args.profile_arg, 0);
+    else
+        av_dict_set(&opts, "qp", "0", 0); // set lossless mode
+    av_dict_set(&opts, "preset", tc->args.preset_arg, 0);
+    /* open the codec */
+    if (avcodec_open2(tc->enc, codec, &opts) < 0) {
+        fprintf(stderr, "could not open codec\n");
+        return 1;
+    }
+
+    /* allocate output buffer */
+    tc->video_outbuf_size = 10000000; // FIXME hardcode
+    tc->video_outbuf = av_malloc(tc->video_outbuf_size);
+    if (!tc->video_outbuf) {
+        fprintf(stderr, "Alloc outbuf fail\n");
+        return 1;
+    }
+    av_dump_format(tc->out, 0, tc->args.output_file_arg, 1);
+    return 0;
+}
+
+int setup_filters(Transcoder *tc) {
+    int r;
+    AVFilter *src  = avfilter_get_by_name("buffer");
+    assert(src);
+    AVFilter *sink = avfilter_get_by_name("nullsink");
+    assert(sink);
     AVFilterInOut *outputs = avfilter_inout_alloc();
+    assert(outputs);
     AVFilterInOut *inputs  = avfilter_inout_alloc();
-    filter_graph = avfilter_graph_alloc();
+    assert(inputs);
+    tc->filter_graph = avfilter_graph_alloc();
+    assert(tc->filter_graph);
 
     char filter_args[50];
     /* buffer video source: the decoded frames from the decoder will be inserted here. */
     snprintf(filter_args, sizeof(filter_args), "%d:%d:%d:%d:%d:%d:%d",
-            global_width, global_height, video_st->codec->pix_fmt,
-            video_st->codec->time_base.num, video_st->codec->time_base.den,
-            video_st->codec->sample_aspect_ratio.num, video_st->codec->sample_aspect_ratio.den);
-    r = avfilter_graph_create_filter(&buffersrc_ctx, buffersrc, "in",
-            filter_args, NULL, filter_graph);
+            tc->width, tc->height, tc->enc->pix_fmt,
+            tc->enc->time_base.num, tc->enc->time_base.den,
+            tc->enc->sample_aspect_ratio.num, tc->enc->sample_aspect_ratio.den);
+    r = avfilter_graph_create_filter(&tc->filter_src, src, "in",
+            filter_args, NULL, tc->filter_graph);
     if (r < 0) {
         av_log(NULL, AV_LOG_ERROR, "Cannot create buffer source\n");
         return r;
@@ -562,8 +527,8 @@ int main(int argc, char **argv) {
 
     /* buffer video sink: to terminate the filter chain. */
     enum PixelFormat pix_fmts[] = { PIX_FMT_YUV420P, PIX_FMT_NONE };
-    r = avfilter_graph_create_filter(&buffersink_ctx, buffersink, "out",
-            NULL, pix_fmts, filter_graph);
+    r = avfilter_graph_create_filter(&tc->filter_sink, sink, "out",
+            NULL, pix_fmts, tc->filter_graph);
     if (r < 0) {
         av_log(NULL, AV_LOG_ERROR, "Cannot create buffer sink\n");
         return r;
@@ -571,18 +536,18 @@ int main(int argc, char **argv) {
 
     /* Endpoints for the filter graph. */
     outputs->name       = av_strdup("in");
-    outputs->filter_ctx = buffersrc_ctx;
+    outputs->filter_ctx = tc->filter_src;
     outputs->pad_idx    = 0;
     outputs->next       = NULL;
 
     inputs->name       = av_strdup("out");
-    inputs->filter_ctx = buffersink_ctx;
+    inputs->filter_ctx = tc->filter_sink;
     inputs->pad_idx    = 0;
     inputs->next       = NULL;
 
-    char *filter_descr = args.filter_arg;
+    char *filter_descr = tc->args.filter_arg;
 
-    r = avfilter_graph_parse(filter_graph, filter_descr,
+    r = avfilter_graph_parse(tc->filter_graph, filter_descr,
 #ifdef LIBAV
             inputs, outputs,
 #else
@@ -593,65 +558,103 @@ int main(int argc, char **argv) {
     if (r < 0)
         return r;
 
-    if ((r = avfilter_graph_config(filter_graph, NULL)) < 0)
+    if ((r = avfilter_graph_config(tc->filter_graph, NULL)) < 0)
         return r;
 
+    return 0;
+}
 
+int main(int argc, char **argv) {
+    int r;
+    Transcoder *tc;
+    struct img *array;
+    int i;
+    int n;
 
+    r = global_init();
+    assert(!r);
 
-    n = imgs_names_durations(args.images_dir_arg, &array);
+    tc = calloc(1, sizeof(*tc));
+    assert(tc);
+
+    r = cmdline_parser(argc, argv, &tc->args);
+
+    // recognize dimensions
+    r = probe(tc);
+    if (r) {
+        fprintf(stderr, "Probing fail\n");
+        return r;
+    }
+
+    tc->pts_step = FMT_TIMEBASE_DEN / tc->args.frame_rate_arg;
+
+    r = open_out(tc);
+    if (r) {
+        fprintf(stderr, "Open out file fail\n");
+        return r;
+    }
+
+    r = open_encoder(tc);
+    if (r) {
+        fprintf(stderr, "Encoder open fail\n");
+        return r;
+    }
+
+    r = setup_filters(tc);
+    if (r) {
+        fprintf(stderr, "Filters setup fail\n");
+        return r;
+    }
+
+    n = imgs_names_durations(tc, &array);
     assert(n > 0);
 
-    avformat_write_header(oc, NULL);
+    r = avformat_write_header(tc->out, NULL);
+    if (r) {
+        fprintf(stderr, "write out file fail\n");
+        return r;
+    }
 
-    unsigned short percent = 0, prev_percent = 0;
-    printf("0%% done");
     for(i = 0; i < n; i++) {
-        printf("processing frame %d\n", i);
-        if ((i > 0) && (array[i].ts == array[i-1].ts))
-            continue; // avoid monotonity problems
-        r = open_image_and_push_video_frame(&array[i], oc);
+        printf("processing frame %d/%d\n", i, n);
+        if (i > 0)
+            assert(array[i].ts > array[i-1].ts);
+        r = open_image_and_push_video_frame(&array[i], tc);
         if (r) {
-            printf("Processing file %s/%s failed, throw away and proceed\n", args.images_dir_arg, array[i].filename);
-        }
-        percent = 100 * i / n;
-        if (percent - prev_percent > 0/*threshold*/) {
-            prev_percent = percent;
-            printf("\r%d%% done", percent);
-            fflush(stdout);
+            fprintf(stderr, "Processing file %s/%s failed, throw away and proceed\n", tc->args.images_dir_arg, array[i].filename);
         }
     }
     while (1) {
         /* flush buffered remainings */
-        r = avcodec_encode_video(oc->streams[0]->codec, video_outbuf, video_outbuf_size, NULL);
+        r = avcodec_encode_video(tc->enc, tc->video_outbuf, tc->video_outbuf_size, NULL);
         if (r <= 0)
             break;
         AVPacket pkt;
         av_init_packet(&pkt);
-        pkt.pts = frames_out++ * pts_step;
+        pkt.pts = tc->frames_out++ * tc->pts_step;
         pkt.dts = pkt.pts;
-        pkt.duration = pts_step;
+        pkt.duration = tc->pts_step;
         printf("pkt.pts %"PRId64"\n", pkt.pts);
-        if(oc->streams[0]->codec->coded_frame->key_frame)
+        if(tc->enc->coded_frame->key_frame)
             pkt.flags |= AV_PKT_FLAG_KEY;
         pkt.stream_index= 0;
-        pkt.data= video_outbuf;
+        pkt.data= tc->video_outbuf;
         pkt.size= r;
 
         /* write the compressed frame in the media file */
-        r = av_interleaved_write_frame(oc, &pkt);
+        r = av_interleaved_write_frame(tc->out, &pkt);
         assert(r == 0);
         av_free_packet(&pkt);
     }
-    av_write_trailer(oc);
-    av_dump_format(oc, 0, args.output_file_arg, 1);
 
-    avcodec_close(video_st->codec);
-    av_free(video_outbuf);
-    av_freep(&oc->streams[0]->codec);
-    av_freep(&oc->streams[0]);
-    avio_close(oc->pb);
-    av_free(oc);
+    av_write_trailer(tc->out);
+    av_dump_format(tc->out, 0, tc->args.output_file_arg, 1);
+
+    avcodec_close(tc->enc);
+    av_free(tc->video_outbuf);
+    avio_close(tc->out->pb);
+    avformat_free_context(tc->out);
+    free(tc);
 
     return 0;
 }

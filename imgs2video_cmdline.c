@@ -38,7 +38,7 @@ const char *args_help[] = {
   "  -i, --images-dir=path       ",
   "  -s, --speedup-coef=INT      How many seconds of real time fits one second of \n                                video  (default=`240')",
   "  -f, --frame-rate=INT        How many frames per second to produce  \n                                (default=`50')",
-  "  -v, --vcodec=STRING         Video codec, supported are h264, flv1  \n                                (default=`h264')",
+  "  -v, --vcodec=STRING         Video encoder, supported are libx264, flv  \n                                (default=`libx264')",
   "      --filter=STRING         avfilter arg  (default=`fifo')",
   "      --preset=STRING         H264 preset  (default=`medium')",
   "      --profile=STRING        H264 profile  (default=`baseline')",
@@ -94,7 +94,7 @@ void clear_args (struct args *args_info)
   args_info->speedup_coef_orig = NULL;
   args_info->frame_rate_arg = 50;
   args_info->frame_rate_orig = NULL;
-  args_info->vcodec_arg = gengetopt_strdup ("h264");
+  args_info->vcodec_arg = gengetopt_strdup ("libx264");
   args_info->vcodec_orig = NULL;
   args_info->filter_arg = gengetopt_strdup ("fifo");
   args_info->filter_orig = NULL;
@@ -632,12 +632,12 @@ cmdline_parser_internal (
             goto failure;
         
           break;
-        case 'v':	/* Video codec, supported are h264, flv1.  */
+        case 'v':	/* Video encoder, supported are libx264, flv.  */
         
         
           if (update_arg( (void *)&(args_info->vcodec_arg), 
                &(args_info->vcodec_orig), &(args_info->vcodec_given),
-              &(local_args_info.vcodec_given), optarg, 0, "h264", ARG_STRING,
+              &(local_args_info.vcodec_given), optarg, 0, "libx264", ARG_STRING,
               check_ambiguity, override, 0, 0,
               "vcodec", 'v',
               additional_error))

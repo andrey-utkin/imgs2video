@@ -51,9 +51,9 @@ struct args
   int frame_rate_arg;	/**< @brief How many frames per second to produce (default='50').  */
   char * frame_rate_orig;	/**< @brief How many frames per second to produce original value given at command line.  */
   const char *frame_rate_help; /**< @brief How many frames per second to produce help description.  */
-  char * vcodec_arg;	/**< @brief Video codec, supported are h264, flv1 (default='h264').  */
-  char * vcodec_orig;	/**< @brief Video codec, supported are h264, flv1 original value given at command line.  */
-  const char *vcodec_help; /**< @brief Video codec, supported are h264, flv1 help description.  */
+  char * vcodec_arg;	/**< @brief Video encoder, supported are libx264, flv (default='libx264').  */
+  char * vcodec_orig;	/**< @brief Video encoder, supported are libx264, flv original value given at command line.  */
+  const char *vcodec_help; /**< @brief Video encoder, supported are libx264, flv help description.  */
   char * filter_arg;	/**< @brief avfilter arg (default='fifo').  */
   char * filter_orig;	/**< @brief avfilter arg original value given at command line.  */
   const char *filter_help; /**< @brief avfilter arg help description.  */
