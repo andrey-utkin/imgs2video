@@ -89,7 +89,7 @@ do
 
     FILENAME=$IMGSDIR/$DAY/$HOUR/${MINSEC}.jpg
     echo filename is $FILENAME
-    wget $URL -O $FILENAME 2>&1
+    wget --no-verbose $URL -O $FILENAME 2>&1
     if [[ $? -ne 0 ]]
     then
         echo "wget $FILENAME failed, surviving" >&2
