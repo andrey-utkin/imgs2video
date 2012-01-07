@@ -16,8 +16,14 @@ source $IMGS2VIDEO_CFGFILE
 
 mkdir -p $IMGSDIR
 mkdir -p $VIDEODIR
+mkdir -p $DAILY_VIDEO_DIR
 
 function hourly {
+# args:
+# $1 dir with images for this hour
+# $2 resulting file
+# $3 actual hour, for filtering logics
+# $4 actual date (YYYY-MM-DD), for daily video saving filename
     echo Gonna remove old files
     find $IMGSDIR -mtime +$SAVE_IMGS_DAYS -exec rm {} \;
     find $VIDEODIR -mtime +$SAVE_VIDEO_HOURS_DAYS -exec rm {} \;
@@ -47,11 +53,15 @@ function hourly {
         return
     fi
     ./cat ${DAYFILE}_part.$OFMT -- $LAST24
-    if [[ $? -eq 0 ]]
+    if [[ $? -ne 0 ]]
     then
-        mv ${DAYFILE}_part.$OFMT ${DAYFILE}.$OFMT
-    else
         echo "Concatenation of files $LAST24 failed" >&2
+        return
+    fi
+    mv ${DAYFILE}_part.$OFMT ${DAYFILE}.$OFMT
+    if [[ "$3" == 23 ]]
+    then
+        cp -v ${DAYFILE}.$OFMT $DAILY_VIDEO_DIR/${4}.$OFMT
     fi
 }
 
@@ -89,7 +99,7 @@ do
     if [[ $PREV_LAP_HOUR != 'unknown' ]] && [[ $PREV_LAP_HOUR != $HOUR ]]
     then
         echo "Hour has ticked from $PREV_LAP_HOUR to $HOUR, launching video assembling"
-        hourly $IMGSDIR/$PREV_LAP_DAY/$PREV_LAP_HOUR $VIDEODIR/${PREV_LAP_DAY}_${PREV_LAP_HOUR}.$OFMT $PREV_LAP_HOUR & #executes in subshell, no back data flow is possible
+        hourly $IMGSDIR/$PREV_LAP_DAY/$PREV_LAP_HOUR $VIDEODIR/${PREV_LAP_DAY}_${PREV_LAP_HOUR}.$OFMT $PREV_LAP_HOUR $PREV_LAP_DAY & #executes in subshell, no back data flow is possible
     fi
 
     PREV_LAP_HOUR=$HOUR

@@ -9,6 +9,7 @@ OFMT=flv # output format
 
 IMGSDIR=`pwd`/imgs_by_hour_dir
 VIDEODIR=`pwd`/video_hours
+DAILY_VIDEO_DIR=`pwd`/video_days
 SAVE_IMGS_DAYS=1
 SAVE_VIDEO_HOURS_DAYS=1
 DAYFILE=`pwd`/last_day #prefix without extension
