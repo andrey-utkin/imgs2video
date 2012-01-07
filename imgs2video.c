@@ -143,6 +143,7 @@ int global_init(void) {
 }
 
 int imgs_names_durations(Transcoder *tc);
+int transform_frames_chain(Transcoder *tc, struct img *array, unsigned int n, struct img **arg);
 
 int tc_build_frames_table(Transcoder *tc) {
     int r;
@@ -433,7 +434,7 @@ int tc_process_frame_input(Transcoder *tc, unsigned int i) {
     av_free(pFrame);
     av_free_packet(&packet);
     avcodec_close(pCodecCtx);
-    av_close_input_file(pFormatCtx);
+    avformat_close_input(&pFormatCtx);
 
     return 0;
 fail_decode:
@@ -445,7 +446,7 @@ fail_alloc_frame:
 fail_avcodec_open:
     ;
 fail_find_decoder:
-    av_close_input_file(pFormatCtx);
+    avformat_close_input(&pFormatCtx);
 fail_open_file:
     return 1;
 }
@@ -591,7 +592,7 @@ static int init_sizes(Transcoder *tc, const char* imageFileName) {
     tc->height = pCodecCtx->height;
 
     avcodec_close(pCodecCtx);
-    av_close_input_file(pFormatCtx);
+    avformat_close_input(&pFormatCtx);
     return 0;
 }
 
@@ -633,7 +634,7 @@ int transform_frames_chain(Transcoder *tc, struct img *array, unsigned int n, st
     // TODO better algo?
     unsigned idx(struct img *frames, unsigned n_frames, unsigned timestamp) {
         unsigned best_i = 0;
-        int i;
+        unsigned int i;
         for (i = 0; i < n_frames; i++) {
             if (FFABS((int64_t)frames[i].ts - (int64_t)timestamp) <
                     FFABS((int64_t)frames[best_i].ts - (int64_t)timestamp) )
@@ -644,7 +645,7 @@ int transform_frames_chain(Transcoder *tc, struct img *array, unsigned int n, st
     unsigned int realtime_duration = array[n-1].ts - array[0].ts;
     unsigned int n_frames = realtime_duration * tc->args.frame_rate_arg / tc->args.speedup_coef_arg;
     struct img *frames = calloc(n_frames, sizeof(struct img));
-    int i, j;
+    unsigned int i, j;
 
     for (i = 0; i < n_frames; i++) {
         frames[i].ts = i * tc->pts_step;
@@ -686,7 +687,7 @@ int imgs_names_durations(Transcoder *tc) {
     struct dirent **namelist;
     struct stat st;
     char *cwd;
-    int i;
+    unsigned int i;
     int r;
 
     cwd = getcwd(NULL, 0);
