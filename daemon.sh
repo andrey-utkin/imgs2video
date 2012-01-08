@@ -46,14 +46,14 @@ function hourly {
         fi
     done
 
-    ./assemble_and_compress.sh $1 $2 $FILTER
+    `dirname $0`/assemble_and_compress.sh $1 $2 $FILTER
     LAST24=`ls -t $VIDEODIR/* | head -n 24 | tac`
     if [[ -z "$LAST24" ]]
     then
         echo Assembling failed, skipping catenation
         return
     fi
-    ./cat ${DAYFILE}_part.$OFMT -- $LAST24
+    `dirname $0`/cat ${DAYFILE}_part.$OFMT -- $LAST24
     if [[ $? -ne 0 ]]
     then
         echo "Concatenation of files $LAST24 failed" >&2
