@@ -93,8 +93,6 @@ static int global_init(void) {
 static int probe(Concatenator *cat) {
     AVFormatContext *pFormatCtx = NULL;
     AVCodecContext *pCodecCtx;
-    AVCodec *pCodec;
-    AVPacket packet;
     int r;
 
     if(avformat_open_input(&pFormatCtx, cat->chunks[0], NULL, NULL)) {
@@ -110,25 +108,6 @@ static int probe(Concatenator *cat) {
     av_dump_format(pFormatCtx, 0, cat->chunks[0], 0);
     pCodecCtx = pFormatCtx->streams[0]->codec;
 
-    // Find the decoder for the video stream
-    pCodec = avcodec_find_decoder(pCodecCtx->codec_id);
-    if (!pCodec) {
-        printf("Codec not found %d\n", pCodecCtx->codec_id);
-        return 1;
-    }
-
-    // Open codec
-    if(avcodec_open2(pCodecCtx, pCodec, NULL)<0) {
-        printf("Could not open codec\n");
-        return 1;
-    }
-
-    r = av_read_frame(pFormatCtx, &packet);
-    if (r) {
-        fprintf(stderr, "reading probed frame fail\n");
-        return 1;
-    }
-
     cat->width = pCodecCtx->width;
     cat->height = pCodecCtx->height;
     cat->frame_rate = pFormatCtx->streams[0]->r_frame_rate.num;
@@ -143,8 +122,6 @@ static int probe(Concatenator *cat) {
 
     printf("File '%s' has width %d, height %d, framerate %d assuming each input video has same\n", cat->chunks[0], cat->width, cat->height, cat->frame_rate);
 
-    av_free_packet(&packet);
-    avcodec_close(pCodecCtx);
     avformat_close_input(&pFormatCtx);
     return 0;
 }
