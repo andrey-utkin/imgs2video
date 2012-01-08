@@ -25,3 +25,4 @@ URL='http://www.wirednewyork.com/images/webcams/wired-new-york-webcam4.jpg'
 
 AFTER_GET_IMAGE_HOOK='sleep 0'
 AFTER_HOUR_PROC_HOOK=':'
+DAILY_HOOK=':'
