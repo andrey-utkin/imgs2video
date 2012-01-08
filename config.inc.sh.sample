@@ -3,6 +3,7 @@
 IMGS2VIDEO=`dirname $0`/imgs2video
 I2V_OPTS= # arbitrary options for imgs2video command
 FFMPEG=ffmpeg
+export LD_LIBRARY_PATH= # you can set path to non-system-wide libav installation
 BITRATE=2000000
 TWOPASS=false
 OFMT=flv # output format
