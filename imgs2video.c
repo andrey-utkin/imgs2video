@@ -550,48 +550,23 @@ char *get_some_pic(const char *dirname) {
 static int init_sizes(Transcoder *tc, const char* imageFileName) {
     AVFormatContext *pFormatCtx = NULL;
     AVCodecContext *pCodecCtx;
-    AVCodec *pCodec;
-    AVFrame *pFrame;
-    AVPacket packet;
     int r;
-    int frameFinished;
 
     if(avformat_open_input(&pFormatCtx, imageFileName, NULL, 0)) {
         printf("Can't open image file '%s'\n", imageFileName);
         return 1;
     }
+    r = avformat_find_stream_info(pFormatCtx, NULL);
+    if (r < 0) {
+        fprintf(stderr, "Probing %s fail (ret %d)\n", imageFileName, r);
+        return 1;
+    }
     //dump_format(pFormatCtx, 0, imageFileName, 0);
     pCodecCtx = pFormatCtx->streams[0]->codec;
-
-    // Find the decoder for the video stream
-    pCodec = avcodec_find_decoder(pCodecCtx->codec_id);
-    if (!pCodec) {
-        printf("Codec not found\n");
-        return 1;
-    }
-
-    // Open codec
-    if(avcodec_open2(pCodecCtx, pCodec, NULL)<0) {
-        printf("Could not open codec\n");
-        return 1;
-    }
-
-    pFrame = avcodec_alloc_frame();
-    if (!pFrame) {
-        printf("Can't allocate memory for AVFrame\n");
-        return 1;
-    }
-
-    r = av_read_frame(pFormatCtx, &packet);
-    assert(r >= 0);
-
-    r = avcodec_decode_video2(pCodecCtx, pFrame, &frameFinished, &packet);
-    assert(r > 0);
     printf("File '%s' has width %d, height %d, assuming each pic has same\n", imageFileName, pCodecCtx->width, pCodecCtx->height);
     tc->width = pCodecCtx->width;
     tc->height = pCodecCtx->height;
 
-    avcodec_close(pCodecCtx);
     avformat_close_input(&pFormatCtx);
     return 0;
 }
