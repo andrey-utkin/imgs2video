@@ -161,16 +161,9 @@ static int open_out(Concatenator *cat, char *filename) {
     // TODO check which settings are necessary
     st->r_frame_rate.den = 1;
     st->r_frame_rate.num = cat->frame_rate;
-    st->avg_frame_rate.den = 1;
-    st->avg_frame_rate.num = cat->frame_rate;
 
     st->time_base.den = FMT_TIMEBASE_DEN;
     st->time_base.num = 1;
-
-    st->sample_aspect_ratio.num = 1;
-    st->sample_aspect_ratio.den = 1;
-    st->codec->sample_aspect_ratio.num = 1;
-    st->codec->sample_aspect_ratio.den = 1;
 
     c = st->codec;
     c->codec_id = cat->video_codec;
