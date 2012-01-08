@@ -20,6 +20,11 @@ mkdir -p $DAILY_VIDEO_DIR
 mkdir -p $LOG_DIR
 
 function hourly {
+    hourly_work "$@"
+    $AFTER_HOUR_PROC_HOOK
+}
+
+function hourly_work {
 # args:
 # $1 dir with images for this hour
 # $2 resulting file

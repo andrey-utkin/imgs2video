@@ -24,3 +24,4 @@ URL='http://www.wirednewyork.com/images/webcams/wired-new-york-webcam4.jpg'
 # one more nice URL: http://www.wirednewyork.com/images/webcams/wired-new-york-webcam3.jpg
 
 AFTER_GET_IMAGE_HOOK='sleep 0'
+AFTER_HOUR_PROC_HOOK=':'
