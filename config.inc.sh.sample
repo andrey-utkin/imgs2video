@@ -14,9 +14,11 @@ OFMT=flv # output format
 IMGSDIR=$BASEPATH/$NAME/imgs_by_hour_dir
 VIDEODIR=$BASEPATH/$NAME/video_hours
 DAILY_VIDEO_DIR=$BASEPATH/$NAME/video_days
+LOG_DIR=$BASEPATH/$NAME/log
 SAVE_IMGS_DAYS=1
 SAVE_VIDEO_HOURS_DAYS=1
 SAVE_VIDEO_DAYS_DAYS=3
+SAVE_LOG_DAYS=30
 DAYFILE=$BASEPATH/$NAME/last_day #prefix without extension
 URL='http://www.wirednewyork.com/images/webcams/wired-new-york-webcam4.jpg'
 # one more nice URL: http://www.wirednewyork.com/images/webcams/wired-new-york-webcam3.jpg

@@ -17,6 +17,7 @@ source $IMGS2VIDEO_CFGFILE
 mkdir -p $IMGSDIR
 mkdir -p $VIDEODIR
 mkdir -p $DAILY_VIDEO_DIR
+mkdir -p $LOG_DIR
 
 function hourly {
 # args:
@@ -28,6 +29,7 @@ function hourly {
     find $IMGSDIR -mtime +$SAVE_IMGS_DAYS -exec rm -rf {} \;
     find $VIDEODIR -mtime +$SAVE_VIDEO_HOURS_DAYS -exec rm -rf {} \;
     find $DAILY_VIDEO_DIR -mtime +$SAVE_VIDEO_DAYS_DAYS -exec rm -rf {} \;
+    find $LOG_DIR -mtime +$SAVE_LOG_DAYS -exec rm -rf {} \;
 
     echo Gonna assemble $1 to $2
     if [[ -z "`ls $1`" ]]
@@ -46,14 +48,14 @@ function hourly {
         fi
     done
 
-    `dirname $0`/assemble_and_compress.sh $1 $2 $FILTER
+    `dirname $0`/assemble_and_compress.sh $1 $2 $FILTER &> $LOG_DIR/assemble__${4}_${3}.log
     LAST24=`ls -t $VIDEODIR/* | head -n 24 | tac`
     if [[ -z "$LAST24" ]]
     then
         echo Assembling failed, skipping catenation
         return
     fi
-    `dirname $0`/cat ${DAYFILE}_part.$OFMT -- $LAST24
+    `dirname $0`/cat ${DAYFILE}_part.$OFMT -- $LAST24 &> $LOG_DIR/cat__${4}_${3}.log
     if [[ $? -ne 0 ]]
     then
         echo "Concatenation of files $LAST24 failed" >&2
