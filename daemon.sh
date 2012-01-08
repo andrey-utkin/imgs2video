@@ -59,7 +59,7 @@ function hourly_work {
         echo Assembling failed, skipping catenation
         return
     fi
-    LAST24=`ls -t $VIDEODIR/* | head -n 24 | tac`
+    LAST24=`ls -rt \`find $VIDEODIR/* -mtime -1\` ` # may be not exactly 24 pieces
     if [[ -z "$LAST24" ]]
     then
         echo "No pieces to concatenate, surprisingly. Skipping"
