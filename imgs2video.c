@@ -46,14 +46,14 @@ struct transcoder {
 };
 typedef struct transcoder Transcoder;
 
-int global_init(void);
-int tc_build_frames_table(Transcoder *tc);
-int probe(Transcoder *tc);
-int open_out(Transcoder *tc);
-int open_encoder(Transcoder *tc);
-int setup_filters(Transcoder *tc);
-int tc_process_frame(Transcoder *tc, unsigned int i);
-int tc_flush_encoder(Transcoder *tc);
+static int global_init(void);
+static int tc_build_frames_table(Transcoder *tc);
+static int probe(Transcoder *tc);
+static int open_out(Transcoder *tc);
+static int open_encoder(Transcoder *tc);
+static int setup_filters(Transcoder *tc);
+static int tc_process_frame(Transcoder *tc, unsigned int i);
+static int tc_flush_encoder(Transcoder *tc);
 
 int main(int argc, char **argv) {
     int r;
@@ -135,17 +135,17 @@ int main(int argc, char **argv) {
     return 0;
 }
 
-int global_init(void) {
+static int global_init(void) {
     av_log_set_level(AV_LOG_VERBOSE);
     av_register_all();
     avfilter_register_all();
     return 0;
 }
 
-int imgs_names_durations(Transcoder *tc);
-int transform_frames_chain(Transcoder *tc, struct img *array, unsigned int n, struct img **arg);
+static int imgs_names_durations(Transcoder *tc);
+static int transform_frames_chain(Transcoder *tc, struct img *array, unsigned int n, struct img **arg);
 
-int tc_build_frames_table(Transcoder *tc) {
+static int tc_build_frames_table(Transcoder *tc) {
     int r;
     tc->pts_step = FMT_TIMEBASE_DEN / tc->args.frame_rate_arg;
     r = imgs_names_durations(tc);
@@ -159,7 +159,7 @@ int tc_build_frames_table(Transcoder *tc) {
 char *get_some_pic(const char *dirname);
 static int init_sizes(Transcoder *tc, const char* imageFileName);
 
-int probe(Transcoder *tc) {
+static int probe(Transcoder *tc) {
     char *tmp;
     int r;
     tmp = get_some_pic(tc->args.images_dir_arg);
@@ -172,7 +172,7 @@ int probe(Transcoder *tc) {
     return 0;
 }
 
-int open_out(Transcoder *tc) {
+static int open_out(Transcoder *tc) {
     /* auto detect the output format from the name. default is
        mpeg. */
     AVOutputFormat *fmt;
@@ -198,7 +198,7 @@ int open_out(Transcoder *tc) {
     return 0;
 }
 
-int open_encoder(Transcoder *tc) {
+static int open_encoder(Transcoder *tc) {
     if (tc->out->oformat->video_codec == CODEC_ID_NONE) {
         printf("guessed format doesnt assume video?\n");
         return 1;
@@ -265,7 +265,7 @@ int open_encoder(Transcoder *tc) {
     return 0;
 }
 
-int setup_filters(Transcoder *tc) {
+static int setup_filters(Transcoder *tc) {
     int r;
     AVFilter *src  = avfilter_get_by_name("buffer");
     assert(src);
@@ -330,13 +330,13 @@ int setup_filters(Transcoder *tc) {
     return 0;
 }
 
-int tc_process_frame_input(Transcoder *tc, unsigned int i);
+static int tc_process_frame_input(Transcoder *tc, unsigned int i);
 static int tc_process_frame_output(Transcoder *tc);
 
 /**
  * @return 0 on success, <0 on fatal error, 1 on non-fatal error
  */
-int tc_process_frame(Transcoder *tc, unsigned int i) {
+static int tc_process_frame(Transcoder *tc, unsigned int i) {
     int r;
     r = tc_process_frame_input(tc, i);
     if (r) {
@@ -353,7 +353,7 @@ int tc_process_frame(Transcoder *tc, unsigned int i) {
 
 static int tc_write_encoded(Transcoder *tc, int pkt_size);
 
-int tc_flush_encoder(Transcoder *tc) {
+static int tc_flush_encoder(Transcoder *tc) {
     // TODO flush filter
     int r;
     while (1) {
@@ -369,7 +369,7 @@ int tc_flush_encoder(Transcoder *tc) {
 /**
  * @return 0 on success, <0 on fatal error, 1 on non-fatal error
  */
-int tc_process_frame_input(Transcoder *tc, unsigned int i) {
+static int tc_process_frame_input(Transcoder *tc, unsigned int i) {
     struct img *img = &tc->frames[i];
     AVFormatContext *pFormatCtx = NULL;
     AVCodecContext *pCodecCtx;
@@ -522,7 +522,7 @@ static int tc_write_encoded(Transcoder *tc, int pkt_size) {
 }
 
 
-int match_postfix_jpg(const char *filename);
+static int match_postfix_jpg(const char *filename);
 
 char *get_some_pic(const char *dirname) {
     int r;
@@ -597,7 +597,7 @@ static int init_sizes(Transcoder *tc, const char* imageFileName) {
 }
 
 
-int match_postfix_jpg(const char *filename) {
+static int match_postfix_jpg(const char *filename) {
     char *p = strcasestr(filename, ".jpg");
     if (!p)
         return 0;
@@ -607,11 +607,11 @@ int match_postfix_jpg(const char *filename) {
         return 0;
 }
 
-int filter_jpg(const struct dirent *a) {
+static int filter_jpg(const struct dirent *a) {
     return match_postfix_jpg(a->d_name);
 }
 
-int compare_mod_dates(const struct dirent **a, const struct dirent **b) {
+static int compare_mod_dates(const struct dirent **a, const struct dirent **b) {
     struct stat a_stat, b_stat;
     int r;
     r = stat((*a)->d_name, &a_stat);
@@ -630,7 +630,7 @@ int compare_mod_dates(const struct dirent **a, const struct dirent **b) {
     return a_stat.st_mtime - b_stat.st_mtime;
 }
 
-int transform_frames_chain(Transcoder *tc, struct img *array, unsigned int n, struct img **arg) {
+static int transform_frames_chain(Transcoder *tc, struct img *array, unsigned int n, struct img **arg) {
     // TODO better algo?
     unsigned idx(struct img *frames, unsigned n_frames, unsigned timestamp) {
         unsigned best_i = 0;
@@ -675,7 +675,7 @@ int transform_frames_chain(Transcoder *tc, struct img *array, unsigned int n, st
     return n_frames;
 }
 
-int imgs_names_durations(Transcoder *tc) {
+static int imgs_names_durations(Transcoder *tc) {
     const char *dir = tc->args.images_dir_arg;
 
     /*
