@@ -63,6 +63,7 @@ function hourly_work {
         echo Assembling failed, skipping catenation
         return
     fi
+    echo "Assembling succeed."
     LAST24=`ls -rt \`find $VIDEODIR/* -mtime -1\` ` # may be not exactly 24 pieces
     if [[ -z "$LAST24" ]]
     then
@@ -75,11 +76,13 @@ function hourly_work {
         echo "Concatenation of files $LAST24 failed" >&2
         return
     fi
+    echo "Concatenation succeed."
     mv ${DAYFILE}_part.$OFMT ${DAYFILE}.$OFMT
     if [[ "$3" == 23 ]]
     then
         cp -v ${DAYFILE}.$OFMT $DAILY_VIDEO_DIR/${4}.$OFMT
     fi
+    echo "Hourly job succeed."
 }
 
 PREV_LAP_HOUR='unknown'
