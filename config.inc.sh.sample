@@ -3,7 +3,7 @@
 NAME=webcam1
 BASEPATH=`pwd`
 
-IMGS2VIDEO=`dirname $0`/imgs2video
+IMGS2VIDEO=`readlink -f \`dirname $0\``/imgs2video
 I2V_OPTS= # arbitrary options for imgs2video command
 FFMPEG=ffmpeg
 export LD_LIBRARY_PATH= # you can set path to non-system-wide libav installation
