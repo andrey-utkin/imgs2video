@@ -102,6 +102,8 @@ do
         hourly $IMGSDIR/$PREV_LAP_DAY/$PREV_LAP_HOUR $VIDEODIR/${PREV_LAP_DAY}_${PREV_LAP_HOUR}.$OFMT $PREV_LAP_HOUR $PREV_LAP_DAY & #executes in subshell, no back data flow is possible
     fi
 
+    $AFTER_GET_IMAGE_HOOK
+
     PREV_LAP_HOUR=$HOUR
     PREV_LAP_DAY=$DAY
 done
