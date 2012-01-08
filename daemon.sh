@@ -25,9 +25,9 @@ function hourly {
 # $3 actual hour, for filtering logics
 # $4 actual date (YYYY-MM-DD), for daily video saving filename
     echo Gonna remove old files
-    find $IMGSDIR -mtime +$SAVE_IMGS_DAYS -exec rm {} \;
-    find $VIDEODIR -mtime +$SAVE_VIDEO_HOURS_DAYS -exec rm {} \;
-    find $DAILY_VIDEO_DIR -mtime +$SAVE_VIDEO_DAYS_DAYS -exec rm {} \;
+    find $IMGSDIR -mtime +$SAVE_IMGS_DAYS -exec rm -rf {} \;
+    find $VIDEODIR -mtime +$SAVE_VIDEO_HOURS_DAYS -exec rm -rf {} \;
+    find $DAILY_VIDEO_DIR -mtime +$SAVE_VIDEO_DAYS_DAYS -exec rm -rf {} \;
 
     echo Gonna assemble $1 to $2
     if [[ -z "`ls $1`" ]]
