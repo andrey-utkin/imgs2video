@@ -22,7 +22,7 @@ mkdir -p $LOG_DIR
 function hourly {
     hourly_work "$@"
     $AFTER_HOUR_PROC_HOOK
-    if [[ $3 == 00 ]]
+    if [[ $3 == 23 ]]
     then
         $DAILY_HOOK
     fi
