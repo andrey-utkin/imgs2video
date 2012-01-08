@@ -178,8 +178,6 @@ static int open_out(Concatenator *cat, char *filename) {
     c->extradata_size = cat->extradata_size;
     if (cat->extradata_size)
         c->extradata = cat->extradata;
-//    if(cat->out->oformat->flags & AVFMT_GLOBALHEADER)
-        c->flags |= CODEC_FLAG_GLOBAL_HEADER;
 
     if (avio_open(&cat->out->pb, filename, URL_WRONLY) < 0) {
         fprintf(stderr, "Could not open '%s'\n", filename);
