@@ -14,6 +14,7 @@ DAILY_VIDEO_DIR=`pwd`/video_days
 SAVE_IMGS_DAYS=1
 SAVE_VIDEO_HOURS_DAYS=1
 DAYFILE=`pwd`/last_day #prefix without extension
-URL='http://upload.wikimedia.org/wikipedia/commons/1/1e/Stonehenge.jpg'
+URL='http://www.wirednewyork.com/images/webcams/wired-new-york-webcam4.jpg'
+# one more nice URL: http://www.wirednewyork.com/images/webcams/wired-new-york-webcam3.jpg
 
 AFTER_GET_IMAGE_HOOK='sleep 0'
