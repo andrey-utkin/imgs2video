@@ -4,7 +4,9 @@ This complex program gives you video (tested with flv output format, h264 codec)
 from your images (tested with jpg). Timestamps are taken from file modification date.
 
 Requires libavformat, libavcodec, libavfilter; encoder libx264, muxer flv,
-decoder and demuxer mjpeg, and filter hqdn3d if you want denoise.
+decoder mjpeg and demuxer image2, and filter hqdn3d if you want denoise.
+The minimalistic fitting configure line is:
+./configure --disable-network --disable-protocols --enable-protocol=file --disable-avdevice --disable-indevs --disable-outdevs --disable-filters --enable-filter=hqdn3d --enable-filter=nullsink --enable-filter=fifo --disable-muxers --enable-muxer=flv --disable-demuxers --enable-demuxer=image2 --enable-demuxer=flv --disable-encoders --enable-encoder=libx264 --disable-decoders --enable-decoder=mjpeg --enable-decoder=h264 --enable-static --enable-shared --disable-parsers --disable-bsfs --enable-yasm --enable-asm --disable-libgsm --enable-libx264 --enable-debug --disable-zlib --enable-optimizations --enable-gpl
 
 Compatible with both ffmpeg.org and libav.org.
 libav.org is author's advice, as community is more helpful.
