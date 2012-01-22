@@ -173,12 +173,15 @@ static int probe(Transcoder *tc) {
 }
 
 static int open_out(Transcoder *tc) {
-    /* auto detect the output format from the name. default is
-       mpeg. */
+    /* auto detect the output format from the name */
     AVOutputFormat *fmt;
     fmt = av_guess_format(NULL, tc->args.output_file_arg, NULL);
     if (!fmt) {
         fprintf(stderr, "Could not find suitable output format\n");
+        return 1;
+    }
+    if (strcmp(fmt->name, "flv")) {
+        fprintf(stderr, "Fix the code to support formats other than FLV\n");
         return 1;
     }
 

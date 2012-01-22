@@ -3,7 +3,7 @@
 if [[ $# -lt 2 ]]
 then
     echo 'Usage: <input images dir> <outfile> [filter]'
-    echo 'Options are configured inside script body, in this version'
+    echo 'Options are configured in config file, pass filename as $IMGS2VIDEO_CFGFILE env var'
     exit 1
 fi
 
