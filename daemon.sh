@@ -90,7 +90,7 @@ PREV_LAP_DAY='unknown'
 
 while true
 do
-    DATE=`date --utc +'%F %H %M%S'`
+    DATE=`date +'%F %H %M%S'`
     DAY=`echo $DATE | awk '{ printf $1 }'`
     HOUR=`echo $DATE | awk '{ printf $2 }'`
     MINSEC=`echo $DATE | awk '{ printf $3 }'`
