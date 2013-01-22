@@ -40,6 +40,9 @@ function hourly_work {
     find $DAILY_VIDEO_DIR -mtime +$SAVE_VIDEO_DAYS_DAYS -exec rm -rf {} \;
     find $LOG_DIR -mtime +$SAVE_LOG_DAYS -exec rm -rf {} \;
 
+    echo Gonna remove zero-sized downloaded images, if any
+    find $1 -maxdepth 1 -type f -size 0 -exec rm -vf {} \;
+
     echo Gonna assemble $1 to $2
     if [[ -z "`ls $1`" ]]
     then
@@ -61,6 +64,10 @@ function hourly_work {
     if [[ $? -ne 0 ]]
     then
         echo Assembling failed, skipping catenation
+        if [[ -n "$NOTIF_EMAILS" ]]
+        then
+          cat $LOG_DIR/assemble__${4}_${3}.log | mail -s "Hourly video assembling failed" -a $LOG_DIR/assemble__${4}_${3}.log $NOTIF_EMAILS
+        fi
         return
     fi
     echo "Assembling succeed."
@@ -74,6 +81,10 @@ function hourly_work {
     if [[ $? -ne 0 ]]
     then
         echo "Concatenation of files $LAST24 failed" >&2
+        if [[ -n "$NOTIF_EMAILS" ]]
+        then
+          cat $LOG_DIR/cat__${4}_${3}.log | mail -s "Video concatenation failed" -a $LOG_DIR/cat__${4}_${3}.log $NOTIF_EMAILS
+        fi
         return
     fi
     echo "Concatenation succeed."
