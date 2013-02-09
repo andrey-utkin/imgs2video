@@ -66,7 +66,7 @@ function hourly_work {
         echo Assembling failed, skipping catenation
         if [[ -n "$NOTIF_EMAILS" ]]
         then
-          cat $LOG_DIR/assemble__${4}_${3}.log | mail -s "Hourly video assembling failed" -a $LOG_DIR/assemble__${4}_${3}.log $NOTIF_EMAILS
+          cat $LOG_DIR/assemble__${4}_${3}.log | mail -s "Hourly video assembling failed on $NAME" -a $LOG_DIR/assemble__${4}_${3}.log $NOTIF_EMAILS
         fi
         return
     fi
@@ -83,7 +83,7 @@ function hourly_work {
         echo "Concatenation of files $LAST24 failed" >&2
         if [[ -n "$NOTIF_EMAILS" ]]
         then
-          cat $LOG_DIR/cat__${4}_${3}.log | mail -s "Video concatenation failed" -a $LOG_DIR/cat__${4}_${3}.log $NOTIF_EMAILS
+          cat $LOG_DIR/cat__${4}_${3}.log | mail -s "Video concatenation failed on $NAME" -a $LOG_DIR/cat__${4}_${3}.log $NOTIF_EMAILS
         fi
         return
     fi
