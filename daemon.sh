@@ -35,10 +35,10 @@ function hourly_work {
 # $3 actual hour, for filtering logics
 # $4 actual date (YYYY-MM-DD), for daily video saving filename
     echo Gonna remove old files
-    find $IMGSDIR -mtime +$SAVE_IMGS_DAYS -exec rm -rf {} \;
-    find $VIDEODIR -mtime +$SAVE_VIDEO_HOURS_DAYS -exec rm -rf {} \;
-    find $DAILY_VIDEO_DIR -mtime +$SAVE_VIDEO_DAYS_DAYS -exec rm -rf {} \;
-    find $LOG_DIR -mtime +$SAVE_LOG_DAYS -exec rm -rf {} \;
+    rm -rf `find $IMGSDIR/* -mtime +$SAVE_IMGS_DAYS`
+    rm -rf `find $VIDEODIR/* -mtime +$SAVE_VIDEO_HOURS_DAYS`
+    rm -rf `find $DAILY_VIDEO_DIR/* -mtime +$SAVE_VIDEO_DAYS_DAYS`
+    rm -rf `find $LOG_DIR/* -mtime +$SAVE_LOG_DAYS`
 
     echo Gonna remove zero-sized downloaded images, if any
     find $1 -maxdepth 1 -type f -size 0 -exec rm -vf {} \;
