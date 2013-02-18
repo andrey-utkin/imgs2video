@@ -9,10 +9,12 @@
 #include <assert.h>
 #include <errno.h>
 #include <libavformat/avformat.h>
+#include <libavformat/avio.h>
 #include <libavcodec/avcodec.h>
 #include <libavfilter/avfilter.h>
 #include <libavfilter/avfiltergraph.h>
-#include <libavfilter/vsrc_buffer.h>
+#include <libavfilter/buffersrc.h>
+#include <libavfilter/buffersink.h>
 #include <libavutil/avutil.h>
 #include "imgs2video_cmdline.h"
 #include "compat.h"
@@ -36,8 +38,6 @@ struct transcoder {
     AVFilterContext *filter_src;
     AVFilterContext *filter_sink;
     AVFilterGraph *filter_graph;
-    uint8_t *video_outbuf;
-    int video_outbuf_size;
     unsigned int frames_in; // how many have been read
     unsigned int frames_out;
     unsigned int pts_step;
@@ -127,7 +127,6 @@ int main(int argc, char **argv) {
     av_dump_format(tc->out, 0, tc->args.output_file_arg, 1);
 
     avcodec_close(tc->enc);
-    av_free(tc->video_outbuf);
     avio_close(tc->out->pb);
     avformat_free_context(tc->out);
     free(tc);
@@ -194,7 +193,7 @@ static int open_out(Transcoder *tc) {
     tc->out->oformat = fmt;
     snprintf(tc->out->filename, sizeof(tc->out->filename), "%s", tc->args.output_file_arg);
 
-    if (avio_open(&tc->out->pb, tc->out->filename, URL_WRONLY) < 0) {
+    if (avio_open(&tc->out->pb, tc->out->filename, AVIO_FLAG_WRITE) < 0) {
         fprintf(stderr, "Could not open '%s'\n", tc->out->filename);
         return 1;
     }
@@ -257,13 +256,6 @@ static int open_encoder(Transcoder *tc) {
         return 1;
     }
 
-    /* allocate output buffer */
-    tc->video_outbuf_size = 10000000; // FIXME hardcode
-    tc->video_outbuf = av_malloc(tc->video_outbuf_size);
-    if (!tc->video_outbuf) {
-        fprintf(stderr, "Alloc outbuf fail\n");
-        return 1;
-    }
     av_dump_format(tc->out, 0, tc->args.output_file_arg, 1);
     return 0;
 }
@@ -272,7 +264,7 @@ static int setup_filters(Transcoder *tc) {
     int r;
     AVFilter *src  = avfilter_get_by_name("buffer");
     assert(src);
-    AVFilter *sink = avfilter_get_by_name("nullsink");
+    AVFilter *sink = avfilter_get_by_name("buffersink");
     assert(sink);
     AVFilterInOut *outputs = avfilter_inout_alloc();
     assert(outputs);
@@ -296,8 +288,11 @@ static int setup_filters(Transcoder *tc) {
 
     /* buffer video sink: to terminate the filter chain. */
     enum PixelFormat pix_fmts[] = { PIX_FMT_YUV420P, PIX_FMT_NONE };
+    AVBufferSinkParams *buffersink_params = av_buffersink_params_alloc();
+    buffersink_params->pixel_fmts = pix_fmts;
     r = avfilter_graph_create_filter(&tc->filter_sink, sink, "out",
-            NULL, pix_fmts, tc->filter_graph);
+            NULL, buffersink_params, tc->filter_graph);
+    av_free(buffersink_params);
     if (r < 0) {
         av_log(NULL, AV_LOG_ERROR, "Cannot create buffer sink\n");
         return r;
@@ -354,17 +349,22 @@ static int tc_process_frame(Transcoder *tc, unsigned int i) {
     return 0;
 }
 
-static int tc_write_encoded(Transcoder *tc, int pkt_size);
+static int tc_write_encoded(Transcoder *tc, AVPacket *pkt);
 
 static int tc_flush_encoder(Transcoder *tc) {
     // TODO flush filter
     int r;
     while (1) {
         /* flush buffered remainings */
-        r = avcodec_encode_video(tc->enc, tc->video_outbuf, tc->video_outbuf_size, NULL);
-        if (r <= 0)
+        int got_packet = 0;
+        AVPacket pkt;
+        av_init_packet(&pkt);
+        pkt.data = NULL;
+        pkt.size = 0;
+        r = avcodec_encode_video2(tc->enc, &pkt, NULL, &got_packet);
+        if ((r < 0) | !got_packet)
             break;
-        tc_write_encoded(tc, r);
+        tc_write_encoded(tc, &pkt);
     }
     return 0;
 }
@@ -427,11 +427,7 @@ static int tc_process_frame_input(Transcoder *tc, unsigned int i) {
     pFrame->pict_type = 0; /* let codec choose */
 
     /* push the decoded frame into the filtergraph */
-#ifdef LIBAV
-    r = av_vsrc_buffer_add_frame(tc->filter_src, pFrame, pFrame->pts, (AVRational){1, 1});
-#else
-    r = av_vsrc_buffer_add_frame(tc->filter_src, pFrame, 0);
-#endif
+    r = av_buffersrc_add_frame(tc->filter_src, pFrame, 0);
     assert(r >= 0);
 
     av_free(pFrame);
@@ -463,40 +459,35 @@ static int tc_process_frame_output(Transcoder *tc) {
 
     /* pull filtered pictures from the filtergraph */
     AVFilterBufferRef *picref = NULL;
-    r = avfilter_poll_frame(tc->filter_sink->inputs[0]);
+    r = av_buffersink_get_buffer_ref(tc->filter_sink, &picref, 0);
     if (r < 0) {
-        fprintf(stderr, "avfilter_poll_frame fail %d\n", r);
-        return -1;
+        if (r == AVERROR(EAGAIN))
+            return 0;
+        fprintf(stderr, "av_buffersink_get_buffer_ref fail %d\n", r);
+        return r;
     }
-    if (r == 0) {
-        printf("avfilter_poll_frame: no frames available\n");
-        return 0;
-    }
-
-    r = avfilter_request_frame(tc->filter_sink->inputs[0]);
-    if (r) {
-        fprintf(stderr, "avfilter_request_frame fail %d\n", r);
-        return -1;
-    }
-
-    picref = tc->filter_sink->inputs[0]->cur_buf;
     assert(picref);
 
     AVFrame *picture = avcodec_alloc_frame();
     assert(picture);
-    r = avfilter_fill_frame_from_video_buffer_ref(picture, picref);
+    r = avfilter_copy_buf_props(picture, picref);
     assert(r == 0);
     picture->pts = picref->pts;
     /* encode the image */
-    out_size = avcodec_encode_video(tc->enc, tc->video_outbuf, tc->video_outbuf_size, picture);
+    int got_packet = 0;
+    AVPacket pkt;
+    av_init_packet(&pkt);
+    pkt.data = NULL;
+    pkt.size = 0;
+    r = avcodec_encode_video2(tc->enc, &pkt, picture, &got_packet);
     avfilter_unref_buffer(picref);
 
     /* if zero size, it means the image was buffered */
-    if (out_size == 0) {
+    if (!got_packet) {
         printf("encoded frame, no data out, filling encoder buffer\n");
         return 0;
     }
-    r = tc_write_encoded(tc, out_size);
+    r = tc_write_encoded(tc, &pkt);
     if (r) {
         fprintf(stderr, "Error while writing video frame\n");
         return -1;
@@ -504,23 +495,13 @@ static int tc_process_frame_output(Transcoder *tc) {
     return 0;
 }
 
-static int tc_write_encoded(Transcoder *tc, int pkt_size) {
+static int tc_write_encoded(Transcoder *tc, AVPacket *pkt) {
     int ret;
-    // write from internal buffer
-    AVPacket pkt;
-    av_init_packet(&pkt);
-
-    pkt.pts = tc->frames_out++ * tc->pts_step;
-    pkt.dts = pkt.pts;
-    pkt.duration = tc->pts_step;
-    if(tc->enc->coded_frame->key_frame)
-        pkt.flags |= AV_PKT_FLAG_KEY;
-    pkt.data = tc->video_outbuf;
-    pkt.size = pkt_size;
-
-    /* write the compressed frame in the media file */
-    ret = av_interleaved_write_frame(tc->out, &pkt);
-    av_free_packet(&pkt);
+    pkt->pts = tc->frames_out++ * tc->pts_step;
+    pkt->dts = pkt->pts;
+    pkt->duration = tc->pts_step;
+    ret = av_write_frame(tc->out, pkt);
+    av_free_packet(pkt);
     return ret;
 }
 

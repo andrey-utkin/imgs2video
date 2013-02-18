@@ -179,7 +179,7 @@ static int open_out(Concatenator *cat, char *filename) {
     if (cat->extradata_size)
         c->extradata = cat->extradata;
 
-    if (avio_open(&cat->out->pb, filename, URL_WRONLY) < 0) {
+    if (avio_open(&cat->out->pb, filename, AVIO_FLAG_WRITE) < 0) {
         fprintf(stderr, "Could not open '%s'\n", filename);
         return 1;
     }
