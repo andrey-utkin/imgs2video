@@ -120,7 +120,7 @@ do
 
     FILENAME=$IMGSDIR/$DAY/$HOUR/${MINSEC}.jpg
     echo filename is $FILENAME
-    wget --no-verbose $URL -O $FILENAME 2>&1
+    wget --connect-timeout=2 --read-timeout=5 $URL -O $FILENAME 2>&1
     if [[ $? -ne 0 ]]
     then
         echo "wget $FILENAME failed, surviving" >&2
