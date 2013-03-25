@@ -66,6 +66,12 @@ struct args
   int bitrate_arg;	/**< @brief Bitrate, bit/s (default='2000000').  */
   char * bitrate_orig;	/**< @brief Bitrate, bit/s original value given at command line.  */
   const char *bitrate_help; /**< @brief Bitrate, bit/s help description.  */
+  int in_width_arg;	/**< @brief Proper input picture width.  */
+  char * in_width_orig;	/**< @brief Proper input picture width original value given at command line.  */
+  const char *in_width_help; /**< @brief Proper input picture width help description.  */
+  int in_height_arg;	/**< @brief Proper input picture height.  */
+  char * in_height_orig;	/**< @brief Proper input picture height original value given at command line.  */
+  const char *in_height_help; /**< @brief Proper input picture height help description.  */
   
   unsigned int help_given ;	/**< @brief Whether help was given.  */
   unsigned int version_given ;	/**< @brief Whether version was given.  */
@@ -78,6 +84,8 @@ struct args
   unsigned int preset_given ;	/**< @brief Whether preset was given.  */
   unsigned int profile_given ;	/**< @brief Whether profile was given.  */
   unsigned int bitrate_given ;	/**< @brief Whether bitrate was given.  */
+  unsigned int in_width_given ;	/**< @brief Whether in-width was given.  */
+  unsigned int in_height_given ;	/**< @brief Whether in-height was given.  */
 
 } ;
 
@@ -95,6 +103,8 @@ struct cmdline_parser_params
 extern const char *args_purpose;
 /** @brief the usage string of the program */
 extern const char *args_usage;
+/** @brief the description string of the program */
+extern const char *args_description;
 /** @brief all the lines making the help output */
 extern const char *args_help[];
 

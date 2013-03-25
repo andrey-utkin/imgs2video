@@ -12,3 +12,5 @@ option "filter"        - "avfilter arg" string default="fifo" optional
 option "preset"        - "H264 preset" string default="medium" optional
 option "profile"       - "H264 profile" string default="baseline" optional
 option "bitrate"       - "Bitrate, bit/s" int default="2000000" optional
+option "in-width"      - "Proper input picture width" int required
+option "in-height"     - "Proper input picture height" int required

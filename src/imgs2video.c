@@ -16,6 +16,7 @@
 #include <libavfilter/buffersrc.h>
 #include <libavfilter/buffersink.h>
 #include <libavutil/avutil.h>
+#include <libavutil/pixdesc.h>
 #include "imgs2video_cmdline.h"
 #include "compat.h"
 
@@ -48,7 +49,6 @@ typedef struct transcoder Transcoder;
 
 static int global_init(void);
 static int tc_build_frames_table(Transcoder *tc);
-static int probe(Transcoder *tc);
 static int open_out(Transcoder *tc);
 static int open_encoder(Transcoder *tc);
 static int setup_filters(Transcoder *tc);
@@ -76,13 +76,6 @@ int main(int argc, char **argv) {
     r = tc_build_frames_table(tc);
     if (r)
         return r;
-
-    // recognize dimensions
-    r = probe(tc);
-    if (r) {
-        fprintf(stderr, "Probing fail\n");
-        return r;
-    }
 
     r = open_out(tc);
     if (r) {
@@ -155,22 +148,6 @@ static int tc_build_frames_table(Transcoder *tc) {
     return 0;
 }
 
-char *get_some_pic(const char *dirname);
-static int init_sizes(Transcoder *tc, const char* imageFileName);
-
-static int probe(Transcoder *tc) {
-    char *tmp;
-    int r;
-    tmp = get_some_pic(tc->args.images_dir_arg);
-    if (!tmp)
-        return 1;
-    r = init_sizes(tc, tmp);
-    if (r)
-        return r;
-    free(tmp);
-    return 0;
-}
-
 static int open_out(Transcoder *tc) {
     /* auto detect the output format from the name */
     AVOutputFormat *fmt;
@@ -226,8 +203,8 @@ static int open_encoder(Transcoder *tc) {
 
     tc->enc = st->codec;
     /* resolution must be a multiple of two */
-    tc->enc->width = tc->width;
-    tc->enc->height = tc->height;
+    tc->enc->width = tc->args.in_width_arg;
+    tc->enc->height = tc->args.in_height_arg;
 
     // for video codecs, at last libx264, timebase must be <framerate> Hz
     tc->enc->time_base.den = tc->args.frame_rate_arg;
@@ -276,7 +253,7 @@ static int setup_filters(Transcoder *tc) {
     char filter_args[50];
     /* buffer video source: the decoded frames from the decoder will be inserted here. */
     snprintf(filter_args, sizeof(filter_args), "%d:%d:%d:%d:%d:%d:%d",
-            tc->width, tc->height, tc->enc->pix_fmt,
+            tc->args.in_width_arg, tc->args.in_height_arg, PIX_FMT_YUVJ420P /* FIXME UNHARDCODE */,
             tc->enc->time_base.num, tc->enc->time_base.den,
             tc->enc->sample_aspect_ratio.num, tc->enc->sample_aspect_ratio.den);
     r = avfilter_graph_create_filter(&tc->filter_src, src, "in",
@@ -386,8 +363,28 @@ static int tc_process_frame_input(Transcoder *tc, unsigned int i) {
         printf("Can't open image file '%s'\n", img->filename);
         goto fail_open_file;
     }
-    //dump_format(pFormatCtx, 0, img->filename, 0);
+
+    r = avformat_find_stream_info(pFormatCtx, NULL);
+    if (r < 0) {
+        printf("Failed recognizing image file '%s'\n", img->filename);
+        goto fail_avcodec_open;
+    }
+    //av_dump_format(pFormatCtx, 0, img->filename, 0);
+
     pCodecCtx = pFormatCtx->streams[0]->codec;
+
+    if (pCodecCtx->width != tc->args.in_width_arg) {
+        printf("Image file '%s' width %d does not match, must be %d\n", img->filename, pCodecCtx->width, tc->args.in_width_arg);
+        goto fail_avcodec_open;
+    }
+    if (pCodecCtx->height != tc->args.in_height_arg) {
+        printf("Image file '%s' height %d does not match, must be %d\n", img->filename, pCodecCtx->height, tc->args.in_height_arg);
+        goto fail_avcodec_open;
+    }
+    if (pCodecCtx->pix_fmt != PIX_FMT_YUVJ420P /* FIXME UNHARDCODE */) {
+        printf("Image file '%s' pix_fmt %s does not match, must be %s\n", img->filename, av_get_pix_fmt_name(pCodecCtx->pix_fmt), av_get_pix_fmt_name(PIX_FMT_YUVJ420P));
+        goto fail_avcodec_open;
+    }
 
     // Find the decoder for the video stream
     pCodec = avcodec_find_decoder(pCodecCtx->codec_id);
@@ -397,14 +394,14 @@ static int tc_process_frame_input(Transcoder *tc, unsigned int i) {
     }
 
     // Open codec
-    if(avcodec_open2(pCodecCtx, pCodec, NULL)<0) {
+    AVDictionary *opts = NULL;
+    av_dict_set(&opts, "err_detect", "explode", 0);
+    r = avcodec_open2(pCodecCtx, pCodec, &opts);
+    av_dict_free(&opts);
+    if(r < 0) {
         printf("Could not open codec\n");
         goto fail_avcodec_open;
     }
-
-    pCodecCtx->width = tc->width;
-    pCodecCtx->height = tc->height;
-    pCodecCtx->pix_fmt = PIX_FMT_YUV420P;
 
     pFrame = avcodec_alloc_frame();
     if (!pFrame) {
@@ -503,56 +500,6 @@ static int tc_write_encoded(Transcoder *tc, AVPacket *pkt) {
     ret = av_write_frame(tc->out, pkt);
     av_free_packet(pkt);
     return ret;
-}
-
-
-static int match_postfix_jpg(const char *filename);
-
-char *get_some_pic(const char *dirname) {
-    int r;
-    char *ret;
-    DIR *dir = opendir(dirname);
-    if (!dir) {
-        fprintf(stderr, "dir '%s' not found", dirname);
-        return NULL;
-    }
-    struct dirent *entry;
-    do {
-        entry = readdir(dir);
-        if (!entry) {
-            fprintf(stderr, "no matching files in '%s'!\n", dirname);
-            exit(1);
-        }
-    } while(!match_postfix_jpg(entry->d_name));
-    r = asprintf(&ret, "%s/%s", dirname, entry->d_name);
-    assert(r != -1);
-    closedir(dir);
-
-    return ret;
-}
-
-static int init_sizes(Transcoder *tc, const char* imageFileName) {
-    AVFormatContext *pFormatCtx = NULL;
-    AVCodecContext *pCodecCtx;
-    int r;
-
-    if(avformat_open_input(&pFormatCtx, imageFileName, NULL, 0)) {
-        printf("Can't open image file '%s'\n", imageFileName);
-        return 1;
-    }
-    r = avformat_find_stream_info(pFormatCtx, NULL);
-    if (r < 0) {
-        fprintf(stderr, "Probing %s fail (ret %d)\n", imageFileName, r);
-        return 1;
-    }
-    //dump_format(pFormatCtx, 0, imageFileName, 0);
-    pCodecCtx = pFormatCtx->streams[0]->codec;
-    printf("File '%s' has width %d, height %d, assuming each pic has same\n", imageFileName, pCodecCtx->width, pCodecCtx->height);
-    tc->width = pCodecCtx->width;
-    tc->height = pCodecCtx->height;
-
-    avformat_close_input(&pFormatCtx);
-    return 0;
 }
 
 
