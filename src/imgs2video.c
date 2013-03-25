@@ -367,13 +367,13 @@ static int tc_process_frame_input(Transcoder *tc, unsigned int i) {
     int frameFinished;
 
     if(avformat_open_input(&pFormatCtx, img->filename, NULL, 0)) {
-        printf("Can't open image file '%s'\n", img->filename);
+        fprintf(stderr, "Can't open image file '%s'\n", img->filename);
         goto fail_open_file;
     }
 
     r = avformat_find_stream_info(pFormatCtx, NULL);
     if (r < 0) {
-        printf("Failed recognizing image file '%s'\n", img->filename);
+        fprintf(stderr, "Failed recognizing image file '%s'\n", img->filename);
         goto fail_avcodec_open;
     }
     //av_dump_format(pFormatCtx, 0, img->filename, 0);
@@ -381,22 +381,22 @@ static int tc_process_frame_input(Transcoder *tc, unsigned int i) {
     pCodecCtx = pFormatCtx->streams[0]->codec;
 
     if (pCodecCtx->width != tc->args.in_width_arg) {
-        printf("Image file '%s' width %d does not match, must be %d\n", img->filename, pCodecCtx->width, tc->args.in_width_arg);
+        fprintf(stderr, "Image file '%s' width %d does not match, must be %d\n", img->filename, pCodecCtx->width, tc->args.in_width_arg);
         goto fail_avcodec_open;
     }
     if (pCodecCtx->height != tc->args.in_height_arg) {
-        printf("Image file '%s' height %d does not match, must be %d\n", img->filename, pCodecCtx->height, tc->args.in_height_arg);
+        fprintf(stderr, "Image file '%s' height %d does not match, must be %d\n", img->filename, pCodecCtx->height, tc->args.in_height_arg);
         goto fail_avcodec_open;
     }
     if (pCodecCtx->pix_fmt != PIX_FMT_YUVJ420P /* FIXME UNHARDCODE */) {
-        printf("Image file '%s' pix_fmt %s does not match, must be %s\n", img->filename, av_get_pix_fmt_name(pCodecCtx->pix_fmt), av_get_pix_fmt_name(PIX_FMT_YUVJ420P));
+        fprintf(stderr, "Image file '%s' pix_fmt %s does not match, must be %s\n", img->filename, av_get_pix_fmt_name(pCodecCtx->pix_fmt), av_get_pix_fmt_name(PIX_FMT_YUVJ420P));
         goto fail_avcodec_open;
     }
 
     // Find the decoder for the video stream
     pCodec = avcodec_find_decoder(pCodecCtx->codec_id);
     if (!pCodec) {
-        printf("Codec not found\n");
+        fprintf(stderr, "Codec not found\n");
         goto fail_find_decoder;
     }
 
@@ -406,25 +406,25 @@ static int tc_process_frame_input(Transcoder *tc, unsigned int i) {
     r = avcodec_open2(pCodecCtx, pCodec, &opts);
     av_dict_free(&opts);
     if(r < 0) {
-        printf("Could not open codec\n");
+        fprintf(stderr, "Could not open codec\n");
         goto fail_avcodec_open;
     }
 
     pFrame = avcodec_alloc_frame();
     if (!pFrame) {
-        printf("Can't allocate memory for AVFrame\n");
+        fprintf(stderr, "Can't allocate memory for AVFrame\n");
         goto fail_alloc_frame;
     }
 
     r = av_read_frame(pFormatCtx, &packet);
     if (r < 0) {
-        printf("Failed to read frame\n");
+        fprintf(stderr, "Failed to read frame\n");
         goto fail_read_frame;
     }
 
     r = avcodec_decode_video2(pCodecCtx, pFrame, &frameFinished, &packet);
     if (r <= 0) {
-        printf("Failed to decode image\n");
+        fprintf(stderr, "Failed to decode image\n");
         goto fail_decode;
     }
     pFrame->pts = tc->frames_in++; // for encoding, pts step must be exactly 1
@@ -488,7 +488,7 @@ static int tc_process_frame_output(Transcoder *tc) {
 
     /* if zero size, it means the image was buffered */
     if (!got_packet) {
-        printf("encoded frame, no data out, filling encoder buffer\n");
+        av_log(NULL, AV_LOG_VERBOSE, "encoded frame, no data out, filling encoder buffer\n");
         return 0;
     }
     r = tc_write_encoded(tc, &pkt);
@@ -529,13 +529,13 @@ static int compare_mod_dates(const struct dirent **a, const struct dirent **b) {
     int r;
     r = stat((*a)->d_name, &a_stat);
     if (r != 0) {
-        printf("stat for '%s' failed: ret %d, errno %d '%s'\n",
+        fprintf(stderr, "stat for '%s' failed: ret %d, errno %d '%s'\n",
                 (*a)->d_name, r, errno, strerror(errno));
         exit(1);
     }
     r = stat((*b)->d_name, &b_stat);
     if (r != 0) {
-        printf("stat for '%s' failed: ret %d, errno %d '%s'\n",
+        fprintf(stderr, "stat for '%s' failed: ret %d, errno %d '%s'\n",
                 (*b)->d_name, r, errno, strerror(errno));
         exit(1);
     }
@@ -627,7 +627,7 @@ static int imgs_names_durations(Transcoder *tc) {
         free(namelist[i]);
         r = stat(tc->files[i].filename, &st);
         if (r != 0) {
-            printf("stat for '%s' failed: ret %d, errno %d '%s'\n",
+            fprintf(stderr, "stat for '%s' failed: ret %d, errno %d '%s'\n",
                     tc->files[i].filename, r, errno, strerror(errno));
             return 1;
         }
@@ -637,7 +637,7 @@ static int imgs_names_durations(Transcoder *tc) {
         //printf("%s %u\n", tc->files[i].filename, tc->files[i].duration);
     }
     free(namelist);
-    printf("%d images\n", tc->n_files);
+    av_log(NULL, AV_LOG_VERBOSE, "%d images\n", tc->n_files);
     return 0;
 }
 
