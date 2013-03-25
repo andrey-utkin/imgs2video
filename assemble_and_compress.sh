@@ -45,9 +45,9 @@ fi
 # Assemble video from images dir using our C util
 if [[ -z $FILTER ]]
 then
-    $IMGS2VIDEO -i $IMGDIR -o $TMPFILE1 $I2V_OPTS
+    $IMGS2VIDEO -i $IMGDIR -o $TMPFILE1 --in-width $IN_WIDTH --in-height $IN_HEIGHT $I2V_OPTS
 else
-    $IMGS2VIDEO -i $IMGDIR -o $TMPFILE1 $I2V_OPTS --filter $FILTER
+    $IMGS2VIDEO -i $IMGDIR -o $TMPFILE1 --in-width $IN_WIDTH --in-height $IN_HEIGHT $I2V_OPTS --filter $FILTER
 fi
 
 if [[ "$TWOPASS" == true ]]

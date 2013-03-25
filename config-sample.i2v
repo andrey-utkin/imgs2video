@@ -8,6 +8,8 @@ I2V_OPTS= # arbitrary options for imgs2video command
 FFMPEG=ffmpeg
 export LD_LIBRARY_PATH= # you can set path to non-system-wide libav installation
 BITRATE=2000000
+IN_WIDTH=1280 # it is mandatory to set here INPUT image resolution
+IN_HEIGHT=720
 TWOPASS=false
 OFMT=flv # output format
 
