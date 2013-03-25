@@ -72,6 +72,12 @@ int main(int argc, char **argv) {
         cmdline_parser_print_help();
         return r;
     }
+    if (!strcmp(tc->args.loglevel_arg, "debug"))
+        av_log_set_level(AV_LOG_DEBUG);
+    else if (!strcmp(tc->args.loglevel_arg, "quiet"))
+        av_log_set_level(AV_LOG_QUIET);
+    else  /* if (!strcmp(tc->args.loglevel_arg, "normal")) */
+        av_log_set_level(AV_LOG_INFO);
 
     r = tc_build_frames_table(tc);
     if (r)
@@ -128,7 +134,6 @@ int main(int argc, char **argv) {
 }
 
 static int global_init(void) {
-    av_log_set_level(AV_LOG_VERBOSE);
     av_register_all();
     avfilter_register_all();
     return 0;

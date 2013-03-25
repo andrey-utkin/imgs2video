@@ -47,6 +47,7 @@ const char *args_help[] = {
   "      --bitrate=INT           Bitrate, bit/s  (default=`2000000')",
   "      --in-width=INT          Proper input picture width",
   "      --in-height=INT         Proper input picture height",
+  "      --loglevel=STRING       Log level, takes values normal/debug/quiet\n                                (default=`normal')",
     0
 };
 
@@ -86,6 +87,7 @@ void clear_given (struct args *args_info)
   args_info->bitrate_given = 0 ;
   args_info->in_width_given = 0 ;
   args_info->in_height_given = 0 ;
+  args_info->loglevel_given = 0 ;
 }
 
 static
@@ -112,6 +114,8 @@ void clear_args (struct args *args_info)
   args_info->bitrate_orig = NULL;
   args_info->in_width_orig = NULL;
   args_info->in_height_orig = NULL;
+  args_info->loglevel_arg = gengetopt_strdup ("normal");
+  args_info->loglevel_orig = NULL;
   
 }
 
@@ -133,6 +137,7 @@ void init_args_info(struct args *args_info)
   args_info->bitrate_help = args_help[10] ;
   args_info->in_width_help = args_help[11] ;
   args_info->in_height_help = args_help[12] ;
+  args_info->loglevel_help = args_help[13] ;
   
 }
 
@@ -233,6 +238,8 @@ cmdline_parser_release (struct args *args_info)
   free_string_field (&(args_info->bitrate_orig));
   free_string_field (&(args_info->in_width_orig));
   free_string_field (&(args_info->in_height_orig));
+  free_string_field (&(args_info->loglevel_arg));
+  free_string_field (&(args_info->loglevel_orig));
   
   
 
@@ -289,6 +296,8 @@ cmdline_parser_dump(FILE *outfile, struct args *args_info)
     write_into_file(outfile, "in-width", args_info->in_width_orig, 0);
   if (args_info->in_height_given)
     write_into_file(outfile, "in-height", args_info->in_height_orig, 0);
+  if (args_info->loglevel_given)
+    write_into_file(outfile, "loglevel", args_info->loglevel_orig, 0);
   
 
   i = EXIT_SUCCESS;
@@ -598,6 +607,7 @@ cmdline_parser_internal (
         { "bitrate",	1, NULL, 0 },
         { "in-width",	1, NULL, 0 },
         { "in-height",	1, NULL, 0 },
+        { "loglevel",	1, NULL, 0 },
         { 0,  0, 0, 0 }
       };
 
@@ -759,6 +769,20 @@ cmdline_parser_internal (
                 &(local_args_info.in_height_given), optarg, 0, 0, ARG_INT,
                 check_ambiguity, override, 0, 0,
                 "in-height", '-',
+                additional_error))
+              goto failure;
+          
+          }
+          /* Log level, takes values normal/debug/quiet.  */
+          else if (strcmp (long_options[option_index].name, "loglevel") == 0)
+          {
+          
+          
+            if (update_arg( (void *)&(args_info->loglevel_arg), 
+                 &(args_info->loglevel_orig), &(args_info->loglevel_given),
+                &(local_args_info.loglevel_given), optarg, 0, "normal", ARG_STRING,
+                check_ambiguity, override, 0, 0,
+                "loglevel", '-',
                 additional_error))
               goto failure;
           

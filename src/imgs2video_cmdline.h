@@ -72,6 +72,9 @@ struct args
   int in_height_arg;	/**< @brief Proper input picture height.  */
   char * in_height_orig;	/**< @brief Proper input picture height original value given at command line.  */
   const char *in_height_help; /**< @brief Proper input picture height help description.  */
+  char * loglevel_arg;	/**< @brief Log level, takes values normal/debug/quiet (default='normal').  */
+  char * loglevel_orig;	/**< @brief Log level, takes values normal/debug/quiet original value given at command line.  */
+  const char *loglevel_help; /**< @brief Log level, takes values normal/debug/quiet help description.  */
   
   unsigned int help_given ;	/**< @brief Whether help was given.  */
   unsigned int version_given ;	/**< @brief Whether version was given.  */
@@ -86,6 +89,7 @@ struct args
   unsigned int bitrate_given ;	/**< @brief Whether bitrate was given.  */
   unsigned int in_width_given ;	/**< @brief Whether in-width was given.  */
   unsigned int in_height_given ;	/**< @brief Whether in-height was given.  */
+  unsigned int loglevel_given ;	/**< @brief Whether loglevel was given.  */
 
 } ;
 
