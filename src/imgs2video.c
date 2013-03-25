@@ -119,7 +119,7 @@ int main(int argc, char **argv) {
             break;
         }
         if (r) {
-            fprintf(stderr, "Processing file %s/%s failed, throw away and proceed\n", tc->args.images_dir_arg, tc->frames[i].filename);
+            fprintf(stderr, "Processing file %s/%s failed, throwing away and proceeding\n", tc->args.images_dir_arg, tc->frames[i].filename);
         }
     }
     tc_flush_encoder(tc);
