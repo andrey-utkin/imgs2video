@@ -57,6 +57,7 @@ static int tc_flush_encoder(Transcoder *tc);
 
 int main(int argc, char **argv) {
     int r;
+    int failure = 0;
     Transcoder *tc;
     unsigned int i;
 
@@ -114,6 +115,7 @@ int main(int argc, char **argv) {
         r = tc_process_frame(tc, i);
         if (r < 0) {
             fprintf(stderr, "Fatal error processing frame, aborting\n");
+            failure = 1;
             break;
         }
         if (r) {
@@ -130,7 +132,7 @@ int main(int argc, char **argv) {
     avformat_free_context(tc->out);
     free(tc);
 
-    return 0;
+    return failure;
 }
 
 static int global_init(void) {
