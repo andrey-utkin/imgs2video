@@ -130,6 +130,11 @@ int main(int argc, char **argv) {
     avcodec_close(tc->enc);
     avio_close(tc->out->pb);
     avformat_free_context(tc->out);
+
+    if (tc->frames_out == 0) {
+        fprintf(stderr, "No frames written, removing output file\n");
+        unlink(tc->args.output_file_arg);
+    }
     free(tc);
 
     return failure;
