@@ -86,40 +86,40 @@ int main(int argc, char **argv) {
 
     r = open_out(tc);
     if (r) {
-        fprintf(stderr, "Open out file fail\n");
+        av_log(NULL, AV_LOG_ERROR, "Open out file fail\n");
         return r;
     }
 
     r = open_encoder(tc);
     if (r) {
-        fprintf(stderr, "Encoder open fail\n");
+        av_log(NULL, AV_LOG_ERROR, "Encoder open fail\n");
         return r;
     }
 
     r = setup_filters(tc);
     if (r) {
-        fprintf(stderr, "Filters setup fail\n");
+        av_log(NULL, AV_LOG_ERROR, "Filters setup fail\n");
         return r;
     }
 
     r = avformat_write_header(tc->out, NULL);
     if (r) {
-        fprintf(stderr, "write out file fail\n");
+        av_log(NULL, AV_LOG_ERROR, "write out file fail\n");
         return r;
     }
 
     for(i = 0; i < tc->n_frames; i++) {
-        printf("processing frame %d/%d\n", i+1, tc->n_frames);
+        av_log(NULL, AV_LOG_INFO, "processing frame %d/%d\n", i+1, tc->n_frames);
         if (i > 0)
             assert(tc->frames[i].ts > tc->frames[i-1].ts);
         r = tc_process_frame(tc, i);
         if (r < 0) {
-            fprintf(stderr, "Fatal error processing frame, aborting\n");
+            av_log(NULL, AV_LOG_ERROR, "Fatal error processing frame, aborting\n");
             failure = 1;
             break;
         }
         if (r) {
-            fprintf(stderr, "Processing file %s/%s failed, throwing away and proceeding\n", tc->args.images_dir_arg, tc->frames[i].filename);
+            av_log(NULL, AV_LOG_ERROR, "Processing file %s/%s failed, throwing away and proceeding\n", tc->args.images_dir_arg, tc->frames[i].filename);
         }
     }
     tc_flush_encoder(tc);
@@ -132,7 +132,7 @@ int main(int argc, char **argv) {
     avformat_free_context(tc->out);
 
     if (tc->frames_out == 0) {
-        fprintf(stderr, "No frames written, removing output file\n");
+        av_log(NULL, AV_LOG_ERROR, "No frames written, removing output file\n");
         unlink(tc->args.output_file_arg);
     }
     free(tc);
@@ -156,7 +156,7 @@ static int tc_build_frames_table(Transcoder *tc) {
     if (r)
         return r;
     tc->n_frames = transform_frames_chain(tc, tc->files, tc->n_files, &tc->frames);
-    printf("%d frames\n", tc->n_frames);
+    av_log(NULL, AV_LOG_INFO, "%d frames\n", tc->n_frames);
     return 0;
 }
 
@@ -165,25 +165,25 @@ static int open_out(Transcoder *tc) {
     AVOutputFormat *fmt;
     fmt = av_guess_format(NULL, tc->args.output_file_arg, NULL);
     if (!fmt) {
-        fprintf(stderr, "Could not find suitable output format\n");
+        av_log(NULL, AV_LOG_ERROR, "Could not find suitable output format\n");
         return 1;
     }
     if (strcmp(fmt->name, "flv")) {
-        fprintf(stderr, "Fix the code to support formats other than FLV\n");
+        av_log(NULL, AV_LOG_ERROR, "Fix the code to support formats other than FLV\n");
         return 1;
     }
 
     /* allocate the output media context */
     tc->out = avformat_alloc_context();
     if (!tc->out) {
-        fprintf(stderr, "Memory error\n");
+        av_log(NULL, AV_LOG_ERROR, "Memory error\n");
         return 1;
     }
     tc->out->oformat = fmt;
     snprintf(tc->out->filename, sizeof(tc->out->filename), "%s", tc->args.output_file_arg);
 
     if (avio_open(&tc->out->pb, tc->out->filename, AVIO_FLAG_WRITE) < 0) {
-        fprintf(stderr, "Could not open '%s'\n", tc->out->filename);
+        av_log(NULL, AV_LOG_ERROR, "Could not open '%s'\n", tc->out->filename);
         return 1;
     }
     return 0;
@@ -191,19 +191,19 @@ static int open_out(Transcoder *tc) {
 
 static int open_encoder(Transcoder *tc) {
     if (tc->out->oformat->video_codec == CODEC_ID_NONE) {
-        printf("guessed format doesnt assume video?\n");
+        av_log(NULL, AV_LOG_INFO, "guessed format doesnt assume video?\n");
         return 1;
     }
 
     AVCodec *codec = avcodec_find_encoder_by_name(tc->args.vcodec_arg);
     if (!codec) {
-        fprintf(stderr, "Encoder %s not found\n", tc->args.vcodec_arg);
+        av_log(NULL, AV_LOG_ERROR, "Encoder %s not found\n", tc->args.vcodec_arg);
         return 1;
     }
     AVStream *st;
     st = avformat_new_stream(tc->out, codec);
     if (!st) {
-        fprintf(stderr, "Could not alloc stream\n");
+        av_log(NULL, AV_LOG_ERROR, "Could not alloc stream\n");
         return 1;
     }
 
@@ -241,7 +241,7 @@ static int open_encoder(Transcoder *tc) {
     av_dict_set(&opts, "preset", tc->args.preset_arg, 0);
     /* open the codec */
     if (avcodec_open2(tc->enc, codec, &opts) < 0) {
-        fprintf(stderr, "could not open codec\n");
+        av_log(NULL, AV_LOG_ERROR, "could not open codec\n");
         return 1;
     }
 
@@ -327,12 +327,12 @@ static int tc_process_frame(Transcoder *tc, unsigned int i) {
     int r;
     r = tc_process_frame_input(tc, i);
     if (r) {
-        fprintf(stderr, "tc_process_frame_input fail\n");
+        av_log(NULL, AV_LOG_ERROR, "tc_process_frame_input fail\n");
         return r;
     }
     r = tc_process_frame_output(tc);
     if (r) {
-        fprintf(stderr, "tc_process_frame_output fail\n");
+        av_log(NULL, AV_LOG_ERROR, "tc_process_frame_output fail\n");
         return r;
     }
     return 0;
@@ -372,13 +372,13 @@ static int tc_process_frame_input(Transcoder *tc, unsigned int i) {
     int frameFinished;
 
     if(avformat_open_input(&pFormatCtx, img->filename, NULL, 0)) {
-        fprintf(stderr, "Can't open image file '%s'\n", img->filename);
+        av_log(NULL, AV_LOG_ERROR, "Can't open image file '%s'\n", img->filename);
         goto fail_open_file;
     }
 
     r = avformat_find_stream_info(pFormatCtx, NULL);
     if (r < 0) {
-        fprintf(stderr, "Failed recognizing image file '%s'\n", img->filename);
+        av_log(NULL, AV_LOG_ERROR, "Failed recognizing image file '%s'\n", img->filename);
         goto fail_avcodec_open;
     }
     //av_dump_format(pFormatCtx, 0, img->filename, 0);
@@ -386,22 +386,22 @@ static int tc_process_frame_input(Transcoder *tc, unsigned int i) {
     pCodecCtx = pFormatCtx->streams[0]->codec;
 
     if (pCodecCtx->width != tc->args.in_width_arg) {
-        fprintf(stderr, "Image file '%s' width %d does not match, must be %d\n", img->filename, pCodecCtx->width, tc->args.in_width_arg);
+        av_log(NULL, AV_LOG_ERROR, "Image file '%s' width %d does not match, must be %d\n", img->filename, pCodecCtx->width, tc->args.in_width_arg);
         goto fail_avcodec_open;
     }
     if (pCodecCtx->height != tc->args.in_height_arg) {
-        fprintf(stderr, "Image file '%s' height %d does not match, must be %d\n", img->filename, pCodecCtx->height, tc->args.in_height_arg);
+        av_log(NULL, AV_LOG_ERROR, "Image file '%s' height %d does not match, must be %d\n", img->filename, pCodecCtx->height, tc->args.in_height_arg);
         goto fail_avcodec_open;
     }
     if (pCodecCtx->pix_fmt != PIX_FMT_YUVJ420P /* FIXME UNHARDCODE */) {
-        fprintf(stderr, "Image file '%s' pix_fmt %s does not match, must be %s\n", img->filename, av_get_pix_fmt_name(pCodecCtx->pix_fmt), av_get_pix_fmt_name(PIX_FMT_YUVJ420P));
+        av_log(NULL, AV_LOG_ERROR, "Image file '%s' pix_fmt %s does not match, must be %s\n", img->filename, av_get_pix_fmt_name(pCodecCtx->pix_fmt), av_get_pix_fmt_name(PIX_FMT_YUVJ420P));
         goto fail_avcodec_open;
     }
 
     // Find the decoder for the video stream
     pCodec = avcodec_find_decoder(pCodecCtx->codec_id);
     if (!pCodec) {
-        fprintf(stderr, "Codec not found\n");
+        av_log(NULL, AV_LOG_ERROR, "Codec not found\n");
         goto fail_find_decoder;
     }
 
@@ -411,25 +411,25 @@ static int tc_process_frame_input(Transcoder *tc, unsigned int i) {
     r = avcodec_open2(pCodecCtx, pCodec, &opts);
     av_dict_free(&opts);
     if(r < 0) {
-        fprintf(stderr, "Could not open codec\n");
+        av_log(NULL, AV_LOG_ERROR, "Could not open codec\n");
         goto fail_avcodec_open;
     }
 
     pFrame = avcodec_alloc_frame();
     if (!pFrame) {
-        fprintf(stderr, "Can't allocate memory for AVFrame\n");
+        av_log(NULL, AV_LOG_ERROR, "Can't allocate memory for AVFrame\n");
         goto fail_alloc_frame;
     }
 
     r = av_read_frame(pFormatCtx, &packet);
     if (r < 0) {
-        fprintf(stderr, "Failed to read frame\n");
+        av_log(NULL, AV_LOG_ERROR, "Failed to read frame\n");
         goto fail_read_frame;
     }
 
     r = avcodec_decode_video2(pCodecCtx, pFrame, &frameFinished, &packet);
     if (r <= 0) {
-        fprintf(stderr, "Failed to decode image\n");
+        av_log(NULL, AV_LOG_ERROR, "Failed to decode image\n");
         goto fail_decode;
     }
     pFrame->pts = tc->frames_in++; // for encoding, pts step must be exactly 1
@@ -472,7 +472,7 @@ static int tc_process_frame_output(Transcoder *tc) {
     if (r < 0) {
         if (r == AVERROR(EAGAIN))
             return 0;
-        fprintf(stderr, "av_buffersink_get_buffer_ref fail %d\n", r);
+        av_log(NULL, AV_LOG_ERROR, "av_buffersink_get_buffer_ref fail %d\n", r);
         return r;
     }
     assert(picref);
@@ -498,7 +498,7 @@ static int tc_process_frame_output(Transcoder *tc) {
     }
     r = tc_write_encoded(tc, &pkt);
     if (r) {
-        fprintf(stderr, "Error while writing video frame\n");
+        av_log(NULL, AV_LOG_ERROR, "Error while writing video frame\n");
         return -1;
     }
     return 0;
@@ -534,13 +534,13 @@ static int compare_mod_dates(const struct dirent **a, const struct dirent **b) {
     int r;
     r = stat((*a)->d_name, &a_stat);
     if (r != 0) {
-        fprintf(stderr, "stat for '%s' failed: ret %d, errno %d '%s'\n",
+        av_log(NULL, AV_LOG_ERROR, "stat for '%s' failed: ret %d, errno %d '%s'\n",
                 (*a)->d_name, r, errno, strerror(errno));
         exit(1);
     }
     r = stat((*b)->d_name, &b_stat);
     if (r != 0) {
-        fprintf(stderr, "stat for '%s' failed: ret %d, errno %d '%s'\n",
+        av_log(NULL, AV_LOG_ERROR, "stat for '%s' failed: ret %d, errno %d '%s'\n",
                 (*b)->d_name, r, errno, strerror(errno));
         exit(1);
     }
@@ -567,7 +567,7 @@ static int transform_frames_chain(Transcoder *tc, struct img *array, unsigned in
 
     for (i = 0; i < n_frames; i++) {
         frames[i].ts = i * tc->pts_step;
-        //printf("frame[%d].ts := %d\n", i, i * pts_step);
+        av_log(NULL, AV_LOG_DEBUG, "frame[%d].ts := %d\n", i, (int)frames[i].ts);
         frames[i].duration = tc->pts_step;
     }
 
@@ -581,7 +581,7 @@ static int transform_frames_chain(Transcoder *tc, struct img *array, unsigned in
          */
         unsigned entry_pos = idx(frames, n_frames, (array[i].ts-array[0].ts) * FMT_TIMEBASE_DEN / tc->args.speedup_coef_arg);
         unsigned next_entry_pos = idx(frames, n_frames, (array[i+1].ts-array[0].ts) * FMT_TIMEBASE_DEN / tc->args.speedup_coef_arg);
-        //printf("img %d, ts %"PRId64", position %d, of next is %d\n", i, (array[i].ts-array[0].ts) * FMT_TIMEBASE_DEN / args.speedup_coef_arg, entry_pos, next_entry_pos);
+        av_log(NULL, AV_LOG_DEBUG, "img %d, ts %"PRId64", position %d, of next is %d\n", i, (array[i].ts-array[0].ts) * FMT_TIMEBASE_DEN / tc->args.speedup_coef_arg, entry_pos, next_entry_pos);
         for (j = entry_pos; j < next_entry_pos; j++)
             frames[j].filename = array[i].filename;
     }
@@ -612,13 +612,13 @@ static int imgs_names_durations(Transcoder *tc) {
     assert(cwd);
     r = chdir(dir);
     if (r) {
-        fprintf(stderr, "Failed to chdir to '%s': errno %d\n", dir, errno);
+        av_log(NULL, AV_LOG_ERROR, "Failed to chdir to '%s': errno %d\n", dir, errno);
         exit(1);
     }
 
     tc->n_files = scandir(".", &namelist, filter_jpg, compare_mod_dates);
     if (tc->n_files == 0) {
-        fprintf(stderr, "source dir contains no suitable files\n");
+        av_log(NULL, AV_LOG_ERROR, "source dir contains no suitable files\n");
         return 1;
     }
 
@@ -632,14 +632,14 @@ static int imgs_names_durations(Transcoder *tc) {
         free(namelist[i]);
         r = stat(tc->files[i].filename, &st);
         if (r != 0) {
-            fprintf(stderr, "stat for '%s' failed: ret %d, errno %d '%s'\n",
+            av_log(NULL, AV_LOG_ERROR, "stat for '%s' failed: ret %d, errno %d '%s'\n",
                     tc->files[i].filename, r, errno, strerror(errno));
             return 1;
         }
         tc->files[i].ts = st.st_mtime;
         if (i > 0)
             tc->files[i].duration = tc->files[i].ts - tc->files[i-1].ts;
-        //printf("%s %u\n", tc->files[i].filename, tc->files[i].duration);
+        av_log(NULL, AV_LOG_DEBUG, "%s %u\n", tc->files[i].filename, tc->files[i].duration);
     }
     free(namelist);
     av_log(NULL, AV_LOG_VERBOSE, "%d images\n", tc->n_files);

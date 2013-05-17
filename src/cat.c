@@ -39,7 +39,7 @@ int main(int argc, char **argv) {
     unsigned int i;
 
     if (argc < 4) {
-        printf("usage: %s <output_file> -- <input1> [input2] [...] [inputN]\n"
+        av_log(NULL, AV_LOG_INFO, "usage: %s <output_file> -- <input1> [input2] [...] [inputN]\n"
                "By Andrey Utkin <andrey.krieger.utkin@gmail.com>\n"
                "\n", argv[0]);
         return 1;
@@ -56,24 +56,24 @@ int main(int argc, char **argv) {
 
     r = probe(cat);
     if (r) {
-        fprintf(stderr, "Probing fail\n");
+        av_log(NULL, AV_LOG_ERROR, "Probing fail\n");
         return 1;
     }
 
     r = open_out(cat, argv[1]);
     if (r) {
-        fprintf(stderr, "Probing fail\n");
+        av_log(NULL, AV_LOG_ERROR, "Probing fail\n");
         return 1;
     }
 
     for(i = 0; i < cat->n_chunks; i++) {
         r = cat_process_chunk(cat, i);
         if (r < 0) {
-            fprintf(stderr, "Fatal error processing chunk, aborting\n");
+            av_log(NULL, AV_LOG_ERROR, "Fatal error processing chunk, aborting\n");
             break;
         }
         if (r) {
-            fprintf(stderr, "Processing chunk %d (%s) failed, throw away and proceed\n", i, cat->chunks[i]);
+            av_log(NULL, AV_LOG_ERROR, "Processing chunk %d (%s) failed, throw away and proceed\n", i, cat->chunks[i]);
         }
     }
     av_write_trailer(cat->out);
@@ -96,12 +96,12 @@ static int probe(Concatenator *cat) {
     int r;
 
     if(avformat_open_input(&pFormatCtx, cat->chunks[0], NULL, NULL)) {
-        printf("Can't open image file '%s'\n", cat->chunks[0]);
+        av_log(NULL, AV_LOG_INFO, "Can't open image file '%s'\n", cat->chunks[0]);
         return 1;
     }
     r = avformat_find_stream_info(pFormatCtx, NULL);
     if (r < 0) {
-        fprintf(stderr, "Probing %s fail (ret %d)\n", cat->chunks[0], r);
+        av_log(NULL, AV_LOG_ERROR, "Probing %s fail (ret %d)\n", cat->chunks[0], r);
         return 1;
     }
 
@@ -120,7 +120,7 @@ static int probe(Concatenator *cat) {
         memcpy(cat->extradata, pCodecCtx->extradata, cat->extradata_size);
     }
 
-    printf("File '%s' has width %d, height %d, framerate %d assuming each input video has same\n", cat->chunks[0], cat->width, cat->height, cat->frame_rate);
+    av_log(NULL, AV_LOG_INFO, "File '%s' has width %d, height %d, framerate %d assuming each input video has same\n", cat->chunks[0], cat->width, cat->height, cat->frame_rate);
 
     avformat_close_input(&pFormatCtx);
     return 0;
@@ -131,17 +131,17 @@ static int open_out(Concatenator *cat, char *filename) {
     AVOutputFormat *fmt;
     fmt = av_guess_format(NULL, filename, NULL);
     if (!fmt) {
-        fprintf(stderr, "Could not find suitable output format\n");
+        av_log(NULL, AV_LOG_ERROR, "Could not find suitable output format\n");
         return 1;
     }
     if (fmt->video_codec == CODEC_ID_NONE) {
-        fprintf(stderr, "guessed format %s (%s) doesnt assume video\n", fmt->name, fmt->long_name);
+        av_log(NULL, AV_LOG_ERROR, "guessed format %s (%s) doesnt assume video\n", fmt->name, fmt->long_name);
         return 1;
     }
     /* allocate the output media context */
     cat->out = avformat_alloc_context();
     if (!cat->out) {
-        fprintf(stderr, "Memory error\n");
+        av_log(NULL, AV_LOG_ERROR, "Memory error\n");
         return 1;
     }
     cat->out->oformat = fmt;
@@ -155,7 +155,7 @@ static int open_out(Concatenator *cat, char *filename) {
 
     st = avformat_new_stream(cat->out, avcodec_find_encoder(cat->video_codec));
     if (!st) {
-        fprintf(stderr, "Could not alloc stream\n");
+        av_log(NULL, AV_LOG_ERROR, "Could not alloc stream\n");
         return 1;
     }
     // TODO check which settings are necessary
@@ -180,12 +180,12 @@ static int open_out(Concatenator *cat, char *filename) {
         c->extradata = cat->extradata;
 
     if (avio_open(&cat->out->pb, filename, AVIO_FLAG_WRITE) < 0) {
-        fprintf(stderr, "Could not open '%s'\n", filename);
+        av_log(NULL, AV_LOG_ERROR, "Could not open '%s'\n", filename);
         return 1;
     }
     r = avformat_write_header(cat->out, NULL);
     if (r) {
-        fprintf(stderr, "avformat_write_header fail %d\n", r);
+        av_log(NULL, AV_LOG_ERROR, "avformat_write_header fail %d\n", r);
         return r;
     }
     av_dump_format(cat->out, 0, filename, 1);
@@ -200,13 +200,13 @@ static int cat_process_chunk(Concatenator *cat, unsigned int i) {
     int r;
 
     if(avformat_open_input(&pFormatCtx, filename, NULL, NULL)) {
-        printf("Can't open image file '%s'\n", filename);
+        av_log(NULL, AV_LOG_INFO, "Can't open image file '%s'\n", filename);
         return 1;
     }
 
     r = avformat_find_stream_info(pFormatCtx, NULL);
     if (r < 0) {
-        fprintf(stderr, "avformat_find_stream_info fail %d\n", r);
+        av_log(NULL, AV_LOG_ERROR, "avformat_find_stream_info fail %d\n", r);
         return 1;
     }
 
@@ -216,7 +216,7 @@ static int cat_process_chunk(Concatenator *cat, unsigned int i) {
 
     if ((int)cat->width != pCodecCtx->width ||
             (int)cat->height != pCodecCtx->height) {
-        printf("Dimensions of '%s' %dx%d do not match previous ones %dx%d\n",
+        av_log(NULL, AV_LOG_INFO, "Dimensions of '%s' %dx%d do not match previous ones %dx%d\n",
                 filename,
                 pCodecCtx->width,
                 pCodecCtx->height,
@@ -228,7 +228,7 @@ static int cat_process_chunk(Concatenator *cat, unsigned int i) {
     while (1) {
         r = av_read_frame(pFormatCtx, &packet);
         if (r < 0) {
-            printf("Frames exhausted\n");
+            av_log(NULL, AV_LOG_INFO, "Frames exhausted\n");
             break;
         }
         if (packet.stream_index != 0)
@@ -236,11 +236,11 @@ static int cat_process_chunk(Concatenator *cat, unsigned int i) {
 
         packet.pts = cat->frames_out++ * cat->pts_step;
         packet.dts = packet.pts;
-        printf("frame pts: %"PRId64"\n", packet.pts);
+        av_log(NULL, AV_LOG_INFO, "frame pts: %"PRId64"\n", packet.pts);
 
         r = av_interleaved_write_frame(cat->out, &packet);
         if (r != 0) {
-            fprintf(stderr, "Error while writing video frame\n");
+            av_log(NULL, AV_LOG_ERROR, "Error while writing video frame\n");
             return 1;
         }
         av_free_packet(&packet);
