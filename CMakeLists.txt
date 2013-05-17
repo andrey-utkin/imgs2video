@@ -47,8 +47,6 @@ add_library(avutil STATIC IMPORTED)
 set_property(TARGET avutil PROPERTY IMPORTED_LOCATION "${FFMPEG_LIB_PATH}/libavutil.a")
 add_library(swscale STATIC IMPORTED)
 set_property(TARGET swscale PROPERTY IMPORTED_LOCATION "${FFMPEG_LIB_PATH}/libswscale.a")
-add_library(swresample STATIC IMPORTED)
-set_property(TARGET swresample PROPERTY IMPORTED_LOCATION "${FFMPEG_LIB_PATH}/libswresample.a")
 add_library(x264 STATIC IMPORTED)
 set_property(TARGET x264 PROPERTY IMPORTED_LOCATION "${X264_LIB_PATH}/libx264.a")
 
@@ -56,7 +54,6 @@ set_property(TARGET x264 PROPERTY IMPORTED_LOCATION "${X264_LIB_PATH}/libx264.a"
 # first. Place new entries BEFORE its dependencies.
 target_link_libraries(imgs2video avfilter)
 target_link_libraries(imgs2video swscale)
-target_link_libraries(imgs2video swresample)
 target_link_libraries(imgs2video avformat)
 target_link_libraries(imgs2video avcodec)
 target_link_libraries(imgs2video avutil)
@@ -66,7 +63,6 @@ target_link_libraries(imgs2video m)  # math lib, taken from system, dynamic
 
 target_link_libraries(cat avfilter)
 target_link_libraries(cat swscale)
-target_link_libraries(cat swresample)
 target_link_libraries(cat avformat)
 target_link_libraries(cat avcodec)
 target_link_libraries(cat avutil)
