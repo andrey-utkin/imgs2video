@@ -30,11 +30,18 @@ list (APPEND FFMPEG_CONFIGURE_OPTIONS
 --disable-filters
 --enable-filter=hqdn3d
 --enable-filter=scale
+--enable-filter=settb
+--enable-filter=setpts
+--enable-filter=fps
 --disable-muxers
 --enable-muxer=flv
+--enable-muxer=mp4
 --disable-demuxers
 --enable-demuxer=image2
+--enable-demuxer=concat
 --enable-demuxer=flv
+--enable-demuxer=mp4
+--enable-demuxer=mov
 --disable-encoders
 --enable-encoder=libx264
 --disable-decoders
@@ -43,7 +50,6 @@ list (APPEND FFMPEG_CONFIGURE_OPTIONS
 --disable-parsers
 --enable-static
 --disable-bsfs
---disable-swresample
 --disable-stripping
 --disable-postproc
 --disable-network
@@ -63,7 +69,7 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../x264 ${CMAKE_CURRENT_SOURCE_DIR}
 
 ExternalProject_Add(ffmpeg-local
   DEPENDS x264_local
-  URL http://ffmpeg.org/releases/ffmpeg-1.1.2.tar.gz
+  GIT_REPOSITORY https://github.com/krieger-od/FFmpeg.git
   BUILD_IN_SOURCE 1
   CONFIGURE_COMMAND ./configure ${FFMPEG_CONFIGURE_OPTIONS}
   )

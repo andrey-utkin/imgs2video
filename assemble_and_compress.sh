@@ -21,7 +21,7 @@ source $IMGS2VIDEO_CFGFILE
 
 IMGDIR=`readlink -f $1`
 OUTFILE=`readlink -f $2`
-FILTER=$3
+FILTER=${3:-null}
 
 TMPDIR=`mktemp --tmpdir --directory imgs2video.XXXXXXX`
 TMPFILE1=$TMPDIR/imgs2video_out.$OFMT
@@ -35,15 +35,18 @@ function cleanup {
 
 trap cleanup INT TERM QUIT
 
-I2V_OPTS="$I2V_OPTS --bitrate $BITRATE "
-
-# Assemble video from images dir using our C util
-if [[ -z $FILTER ]]
-then
-    $IMGS2VIDEO -i $IMGDIR -o $TMPFILE1 --in-width $IN_WIDTH --in-height $IN_HEIGHT $I2V_OPTS
-else
-    $IMGS2VIDEO -i $IMGDIR -o $TMPFILE1 --in-width $IN_WIDTH --in-height $IN_HEIGHT $I2V_OPTS --filter $FILTER
-fi
+echo Making $TMPFILE1 of $IMGDIR
+$FFMPEG \
+        -video_size ${IN_WIDTH}x${IN_HEIGHT} \
+        -err_detect explode \
+        -f image2 \
+        -ts_from_file 1 \
+        -pattern_type glob \
+        -i $IMGDIR'/*.jpg' \
+        -vf "$FILTER,settb=1/1000,setpts=(PTS-STARTPTS)/$SPEEDUP,fps=$FRAMERATE" \
+        $VIDEO_ENCODING_OPTS \
+        $TMPFILE1 \
+        -y
 
 mv $TMPFILE1 $OUTFILE
 

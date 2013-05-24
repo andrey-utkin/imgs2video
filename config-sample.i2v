@@ -3,14 +3,15 @@
 NAME=webcam1
 BASEPATH=`pwd`
 
-IMGS2VIDEO=`readlink -f \`dirname $0\``/imgs2video
-I2V_OPTS= # arbitrary options for imgs2video command
 FFMPEG=ffmpeg
-export LD_LIBRARY_PATH= # you can set path to non-system-wide libav installation
 BITRATE=2000000
+SPEEDUP=240
+FRAMERATE=50
 IN_WIDTH=1280 # it is mandatory to set here INPUT image resolution
 IN_HEIGHT=720
-OFMT=flv # output format
+VIDEO_ENCODING_OPTS=" -vcodec libx264 -b:v $BITRATE -bt:v $(( BITRATE / 10 )) -preset medium -movflags faststart "
+FILTER="null"
+OFMT=mp4 # output format
 
 IMGSDIR=$BASEPATH/$NAME/imgs_by_hour_dir
 VIDEODIR=$BASEPATH/$NAME/video_hours

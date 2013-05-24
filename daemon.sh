@@ -20,7 +20,7 @@ mkdir -p $DAILY_VIDEO_DIR
 mkdir -p $LOG_DIR
 
 function hourly {
-    hourly_work "$@"
+    hourly_work "$@" &> $LOG_DIR/hourly__${4}_${3}.log
     $AFTER_HOUR_PROC_HOOK
     if [[ $3 == 23 ]]
     then
@@ -55,7 +55,7 @@ function hourly_work {
     do
         if [[ $x == $3 ]]
         then
-            FILTER='hqdn3d=20'
+            FILTER="$FILTER,hqdn3d=20"
             break
         fi
     done
@@ -71,14 +71,21 @@ function hourly_work {
         return
     fi
     echo "Assembling succeed."
-    LAST24=`ls -rt \`find $VIDEODIR/* -mtime -1\` ` # may be not exactly 24 pieces
-    if [[ -z "$LAST24" ]]
+
+    CATLIST=`mktemp`
+    for x in ls -rt `find $VIDEODIR/*.$OFMT -mtime -1`
+    do
+        echo "file $x" >> $CATLIST
+    done
+    if ! [[ -s $CATLIST ]]
     then
         echo "No pieces to concatenate, surprisingly. Skipping"
         return
     fi
-    `dirname $0`/cat ${DAYFILE}_part.$OFMT -- $LAST24 &> $LOG_DIR/cat__${4}_${3}.log
-    if [[ $? -ne 0 ]]
+    $FFMPEG -f concat -i $CATLIST -vcodec copy ${DAYFILE}_part.$OFMT &> $LOG_DIR/cat__${4}_${3}.log
+    RET=$?
+    rm $CATLIST
+    if [[ $RET -ne 0 ]]
     then
         echo "Concatenation of files $LAST24 failed" >&2
         if [[ -n "$NOTIF_EMAILS" ]]
