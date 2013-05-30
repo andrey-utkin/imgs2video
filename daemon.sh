@@ -73,7 +73,7 @@ function hourly_work {
     echo "Assembling succeed."
 
     CATLIST=`mktemp`
-    for x in ls -rt `find $VIDEODIR/*.$OFMT -mtime -1`
+    for x in `ls -rt \`find $VIDEODIR/*.$OFMT -mtime -1\` `
     do
         echo "file $x" >> $CATLIST
     done
