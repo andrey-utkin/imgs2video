@@ -82,7 +82,7 @@ function hourly_work {
         echo "No pieces to concatenate, surprisingly. Skipping"
         return
     fi
-    $FFMPEG -f concat -i $CATLIST -vcodec copy ${DAYFILE}_part.$OFMT &> $LOG_DIR/cat__${4}_${3}.log
+    $FFMPEG -f concat -i $CATLIST -vcodec copy -y ${DAYFILE}_part.$OFMT &> $LOG_DIR/cat__${4}_${3}.log
     RET=$?
     rm $CATLIST
     if [[ $RET -ne 0 ]]

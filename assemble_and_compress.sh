@@ -45,8 +45,8 @@ $FFMPEG \
         -i $IMGDIR'/*.jpg' \
         -vf "$FILTER,settb=1/1000,setpts=(PTS-STARTPTS)/$SPEEDUP,fps=$FRAMERATE" \
         $VIDEO_ENCODING_OPTS \
-        $TMPFILE1 \
-        -y
+        -y \
+        $TMPFILE1
 
 mv $TMPFILE1 $OUTFILE
 
