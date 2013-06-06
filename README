@@ -1,4 +1,5 @@
 imgs2video
-
-This complex program gives you video (tested with flv output format, h264 codec)
-from your images (tested with jpg). Timestamps are taken from file modification date.
+This toolkit is dedicated to continuous generation of timelapse video.
+Use build.sh to build.
+The launch point is daemon.sh, it takes a config file.
+Config file template is in config-sample.i2v
