@@ -56,21 +56,26 @@ function hourly {
         return
     fi
 
-    CAT_LOGFILE=$LOG_DIR/cat__${DATE}_${HOUR}.log
-    `dirname $0`/cat_lastday.sh &> $CAT_LOGFILE
-    if [[ $? != 0 ]]
+    if [[ "$NOCAT" == "yes" ]]
     then
-        echo "Concatenation failed"
-        if [[ -n "$NOTIF_EMAILS" ]]
+        echo Configured to omit concatenation, skipping
+    else
+        CAT_LOGFILE=$LOG_DIR/cat__${DATE}_${HOUR}.log
+        `dirname $0`/cat_lastday.sh &> $CAT_LOGFILE
+        if [[ $? != 0 ]]
         then
-          cat $CAT_LOGFILE | mail -s "Video concatenation failed on $NAME" -a $CAT_LOGFILE $NOTIF_EMAILS
+            echo "Concatenation failed"
+            if [[ -n "$NOTIF_EMAILS" ]]
+            then
+              cat $CAT_LOGFILE | mail -s "Video concatenation failed on $NAME" -a $CAT_LOGFILE $NOTIF_EMAILS
+            fi
+            return
         fi
-        return
-    fi
-    echo "Concatenation succeed."
-    if [[ $HOUR == 23 ]]
-    then
-        cp -v ${DAYFILE}.$OFMT $DAILY_VIDEO_DIR/${DATE}.$OFMT
+        echo "Concatenation succeed."
+        if [[ $HOUR == 23 ]]
+        then
+            cp -v ${DAYFILE}.$OFMT $DAILY_VIDEO_DIR/${DATE}.$OFMT
+        fi
     fi
 
     $AFTER_HOUR_PROC_HOOK
