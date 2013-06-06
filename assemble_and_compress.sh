@@ -47,7 +47,12 @@ $FFMPEG \
         $VIDEO_ENCODING_OPTS \
         -y \
         $TMPFILE1
-
-mv $TMPFILE1 $OUTFILE
-
-cleanup
+RET=$?
+if [[ $RET == 0 ]]
+then
+    mv $TMPFILE1 $OUTFILE
+    cleanup
+else
+    rm -rfv $TMPDIR
+    exit $RET
+fi
