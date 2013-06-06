@@ -3,7 +3,7 @@
 if [[ $# -ne 1 ]]
 then
     echo "Usage: $0 <config file>"
-    echo "Config file should be derived from config.inc.sh.sample"
+    echo "Config file should be derived from config-sample.i2v"
     exit 1
 fi
 export IMGS2VIDEO_CFGFILE=$1 # exporting for routines in sub-shells
