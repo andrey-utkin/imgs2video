@@ -19,86 +19,64 @@ mkdir -p $VIDEODIR
 mkdir -p $DAILY_VIDEO_DIR
 mkdir -p $LOG_DIR
 
-function hourly {
-    hourly_work "$@" &> $LOG_DIR/hourly__${4}_${3}.log
-    $AFTER_HOUR_PROC_HOOK
-    if [[ $3 == 23 ]]
-    then
-        $DAILY_HOOK
-    fi
-}
-
-function hourly_work {
-# args:
-# $1 dir with images for this hour
-# $2 resulting file
-# $3 actual hour, for filtering logics
-# $4 actual date (YYYY-MM-DD), for daily video saving filename
+function remove_old {
     echo Gonna remove old files
     rm -rf `find $IMGSDIR/* -mtime +$SAVE_IMGS_DAYS`
     rm -rf `find $VIDEODIR/* -mtime +$SAVE_VIDEO_HOURS_DAYS`
     rm -rf `find $DAILY_VIDEO_DIR/* -mtime +$SAVE_VIDEO_DAYS_DAYS`
     rm -rf `find $LOG_DIR/* -mtime +$SAVE_LOG_DAYS`
+}
 
+function hourly {
+# args:
+# $1 dir with images for this hour
+    DIR=$1
+    DATE=`date --reference=$DIR +%F`
+    HOUR=`date --reference=$DIR +%H`
+    remove_old
     echo Gonna remove zero-sized downloaded images, if any
-    find $1 -maxdepth 1 -type f -size 0 -exec rm -vf {} \;
+    find $DIR -maxdepth 1 -type f -size 0 -exec rm -vf {} \;
 
-    echo Gonna assemble $1 to $2
-    if [[ -z "`ls $1`" ]]
+    echo Gonna assemble $DIR
+    if [[ -z "`ls $DIR`" ]]
     then
         echo This dir is empty, removing it and skipping
-        rmdir $1
+        rmdir $DIR
         return
     fi
-# check if the hour belongs to night, to apply denoise filter
-    for x in 18 19 20 21 22 23 00 01 02 03 04 05
-    do
-        if [[ $x == $3 ]]
-        then
-            FILTER="$FILTER,hqdn3d=20"
-            break
-        fi
-    done
 
-    `dirname $0`/assemble_and_compress.sh $1 $2 $FILTER &> $LOG_DIR/assemble__${4}_${3}.log
+    ASSEMBLE_LOGFILE=$LOG_DIR/assemble__${DATE}_${HOUR}.log
+    `dirname $0`/make_hourly_video.sh $DIR &> $ASSEMBLE_LOGFILE
     if [[ $? -ne 0 ]]
     then
-        echo Assembling failed, skipping catenation
         if [[ -n "$NOTIF_EMAILS" ]]
         then
-          cat $LOG_DIR/assemble__${4}_${3}.log | mail -s "Hourly video assembling failed on $NAME" -a $LOG_DIR/assemble__${4}_${3}.log $NOTIF_EMAILS
+            cat $ASSEMBLE_LOGFILE | mail -s "Hourly video assembling failed on $NAME" -a $ASSEMBLE_LOGFILE $NOTIF_EMAILS
         fi
         return
     fi
-    echo "Assembling succeed."
 
-    CATLIST=`mktemp`
-    for x in `ls -rt \`find $VIDEODIR/*.$OFMT -mtime -1\` `
-    do
-        echo "file $x" >> $CATLIST
-    done
-    if ! [[ -s $CATLIST ]]
+    CAT_LOGFILE=$LOG_DIR/cat__${DATE}_${HOUR}.log
+    `dirname $0`/cat_lastday.sh &> $CAT_LOGFILE
+    if [[ $? != 0 ]]
     then
-        echo "No pieces to concatenate, surprisingly. Skipping"
-        return
-    fi
-    $FFMPEG -f concat -i $CATLIST -vcodec copy -y ${DAYFILE}_part.$OFMT &> $LOG_DIR/cat__${4}_${3}.log
-    RET=$?
-    rm $CATLIST
-    if [[ $RET -ne 0 ]]
-    then
-        echo "Concatenation of files $LAST24 failed" >&2
+        echo "Concatenation failed"
         if [[ -n "$NOTIF_EMAILS" ]]
         then
-          cat $LOG_DIR/cat__${4}_${3}.log | mail -s "Video concatenation failed on $NAME" -a $LOG_DIR/cat__${4}_${3}.log $NOTIF_EMAILS
+          cat $CAT_LOGFILE | mail -s "Video concatenation failed on $NAME" -a $CAT_LOGFILE $NOTIF_EMAILS
         fi
         return
     fi
     echo "Concatenation succeed."
-    mv ${DAYFILE}_part.$OFMT ${DAYFILE}.$OFMT
-    if [[ "$3" == 23 ]]
+    if [[ $HOUR == 23 ]]
     then
-        cp -v ${DAYFILE}.$OFMT $DAILY_VIDEO_DIR/${4}.$OFMT
+        cp -v ${DAYFILE}.$OFMT $DAILY_VIDEO_DIR/${DATE}.$OFMT
+    fi
+
+    $AFTER_HOUR_PROC_HOOK
+    if [[ $HOUR == 23 ]]
+    then
+        $DAILY_HOOK
     fi
     echo "Hourly job succeed."
 }
@@ -112,19 +90,7 @@ do
     DAY=`echo $DATE | awk '{ printf $1 }'`
     HOUR=`echo $DATE | awk '{ printf $2 }'`
     MINSEC=`echo $DATE | awk '{ printf $3 }'`
-
-#assertion
-    if [[ -e $IMGSDIR/$DAY/$HOUR ]] && ! [[ -d $IMGSDIR/$DAY/$HOUR ]]
-    then
-        echo "Unneeded file exists: $IMGSDIR/$DAY/$HOUR - must be dir" >&2
-        exit 1
-    fi
-
-    if ! [[ -e $IMGSDIR/$DAY/$HOUR ]]
-    then
-        mkdir -p $IMGSDIR/$DAY/$HOUR
-    fi
-
+    mkdir -p $IMGSDIR/$DAY/$HOUR
     FILENAME=$IMGSDIR/$DAY/$HOUR/${MINSEC}.jpg
     echo filename is $FILENAME
     wget --connect-timeout=2 --read-timeout=5 $URL -O $FILENAME 2>&1
@@ -137,12 +103,10 @@ do
     if [[ $PREV_LAP_HOUR != 'unknown' ]] && [[ $PREV_LAP_HOUR != $HOUR ]]
     then
         echo "Hour has ticked from $PREV_LAP_HOUR to $HOUR, launching video assembling"
-        hourly $IMGSDIR/$PREV_LAP_DAY/$PREV_LAP_HOUR $VIDEODIR/${PREV_LAP_DAY}_${PREV_LAP_HOUR}.$OFMT $PREV_LAP_HOUR $PREV_LAP_DAY & #executes in subshell, no back data flow is possible
+        HOURLY_LOGFILE=$LOG_DIR/hourly__${DAY}_${HOUR}.log
+        hourly $IMGSDIR/$PREV_LAP_DAY/$PREV_LAP_HOUR &> $HOURLY_LOGFILE &
     fi
-
     $AFTER_GET_IMAGE_HOOK
-
     PREV_LAP_HOUR=$HOUR
     PREV_LAP_DAY=$DAY
 done
-
