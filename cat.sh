@@ -12,6 +12,13 @@ then
 fi
 source $IMGS2VIDEO_CFGFILE
 
+if [[ $# -lt 3 ]]
+then
+    echo 'Usage: <output file> -- <input file 1> [... <input file N>]'
+    echo 'Options are configured in config file, pass filename as $IMGS2VIDEO_CFGFILE env var'
+    exit 1
+fi
+
 DSTFILE=$1
 shift 2
 CATLIST="$@"
