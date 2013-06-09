@@ -40,20 +40,18 @@ function hourly {
     echo Gonna assemble $DIR
     if [[ -z "`ls $DIR`" ]]
     then
-        echo This dir is empty, removing it and skipping
+        echo This dir is empty, removing it and skipping assembling
         rmdir $DIR
-        return
-    fi
-
-    ASSEMBLE_LOGFILE=$LOG_DIR/assemble__${DATE}_${HOUR}.log
-    `dirname $0`/make_hourly_video.sh $DIR &> $ASSEMBLE_LOGFILE
-    if [[ $? -ne 0 ]]
-    then
-        if [[ -n "$NOTIF_EMAILS" ]]
+    else
+        ASSEMBLE_LOGFILE=$LOG_DIR/assemble__${DATE}_${HOUR}.log
+        `dirname $0`/make_hourly_video.sh $DIR &> $ASSEMBLE_LOGFILE
+        if [[ $? -ne 0 ]]
         then
-            cat $ASSEMBLE_LOGFILE | mail -s "Hourly video assembling failed on $NAME" -a $ASSEMBLE_LOGFILE $NOTIF_EMAILS
+            if [[ -n "$NOTIF_EMAILS" ]]
+            then
+                cat $ASSEMBLE_LOGFILE | mail -s "Hourly video assembling failed on $NAME" -a $ASSEMBLE_LOGFILE $NOTIF_EMAILS
+            fi
         fi
-        return
     fi
 
     if [[ "$NOCAT" == "yes" ]]
@@ -69,7 +67,6 @@ function hourly {
             then
               cat $CAT_LOGFILE | mail -s "Video concatenation failed on $NAME" -a $CAT_LOGFILE $NOTIF_EMAILS
             fi
-            return
         fi
         echo "Concatenation succeed."
         if [[ $HOUR == 23 ]]
