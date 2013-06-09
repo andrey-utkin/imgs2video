@@ -26,7 +26,7 @@ echo Catlist at cat.sh args: $CATLIST
 CATLISTFILE=`mktemp`
 for x in $CATLIST
 do
-    echo "file $x" >> $CATLISTFILE
+    echo "file `readlink -f $x`" >> $CATLISTFILE
 done
 $FFMPEG -f concat -i $CATLISTFILE -vcodec copy -y $DSTFILE
 RET=$?
