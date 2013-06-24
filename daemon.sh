@@ -19,21 +19,13 @@ mkdir -p $VIDEODIR
 mkdir -p $DAILY_VIDEO_DIR
 mkdir -p $LOG_DIR
 
-function remove_old {
-    echo Gonna remove old files
-    rm -rf `find $IMGSDIR/* -mtime +$SAVE_IMGS_DAYS`
-    rm -rf `find $VIDEODIR/* -mtime +$SAVE_VIDEO_HOURS_DAYS`
-    rm -rf `find $DAILY_VIDEO_DIR/* -mtime +$SAVE_VIDEO_DAYS_DAYS`
-    rm -rf `find $LOG_DIR/* -mtime +$SAVE_LOG_DAYS`
-}
-
 function hourly {
 # args:
 # $1 dir with images for this hour
     DIR=$1
     DATE=`date --reference=$DIR +%F`
     HOUR=`date --reference=$DIR +%H`
-    remove_old
+    `dirname $0`/remove_old.sh
     echo Gonna remove zero-sized downloaded images, if any
     find $DIR -maxdepth 1 -type f -size 0 -exec rm -vf {} \;
 
