@@ -43,12 +43,17 @@ then
     FILTER="$FILTER,hqdn3d=20"
 fi
 
-DSTFILE=$VIDEODIR/${DATE}_${HOUR}.$OFMT
-`dirname $0`/assemble_and_compress.sh $DIR $DSTFILE $FILTER
-if [[ $? -ne 0 ]]
-then
-    echo "Assembling failed"
-    exit 1
-fi
-echo "Assembling succeed"
-touch --date="$DATE $HOUR:00:00" $DSTFILE
+for OFMT in $OFMTS
+do
+    export OFMT
+    export VIDEO_ENCODING_OPTS=${VIDEO_ENCODING_OPTS[$OFMT]}
+    DSTFILE=$VIDEODIR/${DATE}_${HOUR}.$OFMT
+    `dirname $0`/assemble_and_compress.sh $DIR $DSTFILE $FILTER
+    if [[ $? -ne 0 ]]
+    then
+        echo "Assembling failed"
+        exit 1
+    fi
+    echo "Assembling succeed"
+    touch --date="$DATE $HOUR:00:00" $DSTFILE
+done

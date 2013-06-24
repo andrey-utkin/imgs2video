@@ -23,19 +23,15 @@ IMGDIR=`readlink -f $1`
 OUTFILE=`readlink -f $2`
 FILTER=${3:-null}
 
-TMPDIR=`mktemp --tmpdir --directory imgs2video.XXXXXXX`
-TMPFILE1=$TMPDIR/imgs2video_out.$OFMT
-pushd $TMPDIR
-
 function cleanup {
-    echo "Cleaning up temp files"
-    rm -rfv $TMPDIR
+    echo "Removing unfinished output file $OUTFILE"
+    rm $OUTFILE
     exit 0
 }
 
 trap cleanup INT TERM QUIT
 
-echo Making $TMPFILE1 of $IMGDIR
+echo Making $OUTFILE of $IMGDIR
 $FFMPEG \
         -video_size ${IN_WIDTH}x${IN_HEIGHT} \
         -err_detect explode \
@@ -46,13 +42,10 @@ $FFMPEG \
         -vf "$FILTER,settb=1/1000,setpts=(PTS-STARTPTS)/$SPEEDUP,fps=$FRAMERATE" \
         $VIDEO_ENCODING_OPTS \
         -y \
-        $TMPFILE1
+        $OUTFILE
 RET=$?
-if [[ $RET == 0 ]]
+if [[ $RET != 0 ]]
 then
-    mv $TMPFILE1 $OUTFILE
-    cleanup
-else
-    rm -rfv $TMPDIR
-    exit $RET
+    rm $OUTFILE
 fi
+exit $RET
