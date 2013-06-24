@@ -38,7 +38,7 @@ then
 fi
 
 # check if the hour belongs to night, to apply denoise filter
-if [[ $3 -ge 18 || $3 -le 5 ]]
+if [[ $HOUR -ge 18 || $HOUR -le 5 ]]
 then
     FILTER="$FILTER,hqdn3d=20"
 fi
