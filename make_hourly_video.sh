@@ -38,7 +38,7 @@ then
 fi
 
 # check if the hour belongs to night, to apply denoise filter
-if [[ $HOUR -ge 18 || $HOUR -le 5 ]]
+if [[ 10#$HOUR -ge 18 || 10#$HOUR -le 5 ]]
 then
     FILTER="$FILTER,hqdn3d=20"
 fi
@@ -46,8 +46,12 @@ fi
 for OFMT in $OFMTS
 do
     export OFMT
-    export VIDEO_ENCODING_OPTS=${VIDEO_ENCODING_OPTS[$OFMT]}
+    export VIDEO_ENCODING_OPTS=${VIDEO_ENCODING_OPTS_ARRAY[$OFMT]}
     DSTFILE=$VIDEODIR/${DATE}_${HOUR}.$OFMT
+    if [[ -e $DSTFILE ]]
+    then
+        continue
+    fi
     `dirname $0`/assemble_and_compress.sh $DIR $DSTFILE $FILTER
     if [[ $? -ne 0 ]]
     then

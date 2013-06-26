@@ -22,9 +22,10 @@ fi
 
 for OFMT in $OFMTS
 do
+    CATLIST=""
     for x in $VIDEODIR/*.$OFMT
     do
-        if [[ -n "`find $x -mtime -1`" ]]
+        if [[ -n "`find $x -mmin -$((25*60))`" ]]
         then
             CATLIST="$x $CATLIST"
         fi
