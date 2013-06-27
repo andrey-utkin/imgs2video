@@ -15,6 +15,8 @@ export IMGS2VIDEO_CFGFILE
 
 mkdir -p $DAILY_VIDEO_DIR
 
+`dirname $0`/fix_hourvideo_mtime.sh $VIDEODIR/*
+
 `dirname $0`/remove_old.sh
 
 # copy-paste from daemon.sh hourly()
