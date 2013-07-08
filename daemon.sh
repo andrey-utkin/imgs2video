@@ -61,13 +61,6 @@ function hourly {
             fi
         fi
         echo "Concatenation succeed."
-        if [[ $HOUR == 23 ]]
-        then
-            for OFMT in $OFMTS
-            do
-                cp -v ${DAYFILE}.$OFMT $DAILY_VIDEO_DIR/${DATE}.$OFMT
-            done
-        fi
         `dirname $0`/cat_all_days.sh # cat's accidentally skipped daily videos
     fi
 
