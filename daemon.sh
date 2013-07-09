@@ -23,8 +23,8 @@ function hourly {
 # args:
 # $1 dir with images for this hour
     DIR=$1
-    DATE=`date --reference=$DIR +%F`
-    HOUR=`date --reference=$DIR +%H`
+    HOUR=`basename $DIR`
+    DATE=`basename \`dirname $DIR\``
     `dirname $0`/remove_old.sh
     echo Gonna remove zero-sized downloaded images, if any
     find $DIR -maxdepth 1 -type f -size 0 -exec rm -vf {} \;
