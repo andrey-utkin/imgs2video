@@ -19,11 +19,8 @@ mkdir -p $DAILY_VIDEO_DIR
 
 `dirname $0`/remove_old.sh
 
-# copy-paste from daemon.sh hourly()
-LATEST_VIDEO_HOUR_FILE=`ls -t $VIDEODIR/* | head -1`
-DATE=`date --reference=$LATEST_VIDEO_HOUR_FILE +%F`
-HOUR=`date --reference=$LATEST_VIDEO_HOUR_FILE +%H`
-
+DATE=`date +%F`
+HOUR=`date +%H`
 CAT_LOGFILE=$LOG_DIR/cat__${DATE}_${HOUR}.log
 `dirname $0`/cat_lastday.sh &> $CAT_LOGFILE
 if [[ $? != 0 ]]
