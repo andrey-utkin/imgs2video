@@ -28,7 +28,7 @@ for x in $CATLIST
 do
     echo "file `readlink -f $x`" >> $CATLISTFILE
 done
-$FFMPEG -f concat -i $CATLISTFILE -vcodec copy -y $DSTFILE
+$FFMPEG -f concat -i $CATLISTFILE -vcodec copy -movflags faststart -y $DSTFILE
 RET=$?
 rm $CATLISTFILE
 exit $RET
