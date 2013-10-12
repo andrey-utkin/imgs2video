@@ -20,6 +20,9 @@ then
     exit 1
 fi
 
+echo Gonna remove zero-sized video hour files, if any
+find $VIDEODIR -maxdepth 1 -type f -size 0 -exec rm -vf {} \;
+
 for OFMT in $OFMTS
 do
     CATLIST=""

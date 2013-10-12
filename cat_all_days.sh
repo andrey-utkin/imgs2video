@@ -12,6 +12,9 @@ then
 fi
 source $IMGS2VIDEO_CFGFILE
 
+echo Gonna remove zero-sized video hour files, if any
+find $VIDEODIR -maxdepth 1 -type f -size 0 -exec rm -vf {} \;
+
 # TODO Check for yesterday..(today-$SAVE_VIDEO_HOURS_DAYS)
 for x in `seq 1 $SAVE_VIDEO_HOURS_DAYS`
 do
