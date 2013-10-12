@@ -12,7 +12,7 @@ then
 fi
 source $IMGS2VIDEO_CFGFILE
 
-rm -rf `find $IMGSDIR/* -mtime +$SAVE_IMGS_DAYS`
-rm -rf `find $VIDEODIR/* -mtime +$SAVE_VIDEO_HOURS_DAYS`
-rm -rf `find $DAILY_VIDEO_DIR/* -mtime +$SAVE_VIDEO_DAYS_DAYS`
-rm -rf `find $LOG_DIR/* -mtime +$SAVE_LOG_DAYS`
+find $IMGSDIR/* -mtime +$SAVE_IMGS_DAYS -exec rm -rf {} \;
+find $VIDEODIR/* -mtime +$SAVE_VIDEO_HOURS_DAYS -exec rm -rf {} \;
+find $DAILY_VIDEO_DIR/* -mtime +$SAVE_VIDEO_DAYS_DAYS -exec rm -rf {} \;
+find $LOG_DIR/* -mtime +$SAVE_LOG_DAYS -exec rm -rf {} \;
