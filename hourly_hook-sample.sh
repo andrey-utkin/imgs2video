@@ -18,7 +18,7 @@ RET=1
 while [[ $RSYNC_ATTEMPT != $RSYNC_ATTEMPTS_MAX ]] && [[ $RET != 0 ]] && [[ "`date +%s`" -lt $(( SCRIPT_START_TIME + SCRIPT_MAX_TIME )) ]]
 do
 	RSYNC_ATTEMPT=$(( RSYNC_ATTEMPT + 1 ))
-	rsync -e "ssh -p $MASTER_SERVER_SSH_PORT" -av --partial /opt/imgs2video/$NAME/{video_hours,log} root@$MASTER_SERVER:/opt/imgs2video/$NAME
+	rsync -e "ssh -p $MASTER_SERVER_SSH_PORT -o ConnectTimeout=10" --timeout 10 -av --partial /opt/imgs2video/$NAME/{video_hours,log} root@$MASTER_SERVER:/opt/imgs2video/$NAME
 	RET=$?
 	echo rsync attempt $RSYNC_ATTEMPT exited with $RET
 done
