@@ -12,18 +12,14 @@ then
 fi
 source $IMGS2VIDEO_CFGFILE
 
-IMGSDIR_MTIME=$(( SAVE_IMGS_DAYS - 1 ))
-[[ IMGSDIR_MTIME -lt 0 ]] && IMGSDIR_MTIME=0  # avoid negative values
-find $IMGSDIR/* -mtime +$IMGSDIR_MTIME -exec rm -rf {} \; &>/dev/null
+IMGSDIR_MMIN=$(( SAVE_IMGS_DAYS * 60 * 24 + 60 ))
+find $IMGSDIR/* -mmin +$IMGSDIR_MMIN -exec rm -rf {} \; &>/dev/null
 
-VIDEODIR_MTIME=$(( SAVE_VIDEO_HOURS_DAYS - 1 ))
-[[ VIDEODIR_MTIME -lt 0 ]] && VIDEODIR_MTIME=0  # avoid negative values
-find $VIDEODIR/* -mtime +$VIDEODIR_MTIME -exec rm -rf {} \; &>/dev/null
+VIDEODIR_MMIN=$(( SAVE_VIDEO_HOURS_DAYS * 60 * 24 + 60 ))
+find $VIDEODIR/* -mmin +$VIDEODIR_MMIN -exec rm -rf {} \; &>/dev/null
 
-DAILY_VIDEO_DIR_MTIME=$(( SAVE_VIDEO_DAYS_DAYS - 1 ))
-[[ DAILY_VIDEO_DIR_MTIME -lt 0 ]] && DAILY_VIDEO_DIR_MTIME=0  # avoid negative values
-find $DAILY_VIDEO_DIR/* -mtime +$DAILY_VIDEO_DIR_MTIME -exec rm -rf {} \; &>/dev/null
+DAILY_VIDEO_DIR_MMIN=$(( SAVE_VIDEO_DAYS_DAYS * 60 * 24 + 60 ))
+find $DAILY_VIDEO_DIR/* -mmin +$DAILY_VIDEO_DIR_MMIN -exec rm -rf {} \; &>/dev/null
 
-LOG_DIR_MTIME=$(( SAVE_LOG_DAYS - 1 ))
-[[ LOG_DIR_MTIME -lt 0 ]] && LOG_DIR_MTIME=0  # avoid negative values
-find $LOG_DIR/* -mtime +$LOG_DIR_MTIME -exec rm -rf {} \; &>/dev/null
+LOG_DIR_MMIN=$(( SAVE_LOG_DAYS * 60 * 24 + 60 ))
+find $LOG_DIR/* -mmin +$LOG_DIR_MMIN -exec rm -rf {} \; &>/dev/null
