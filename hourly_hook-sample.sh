@@ -28,4 +28,4 @@ then
 	echo "All rsync attempts failed, not launching remote build script"
 	exit 1
 fi
-ssh -p $MASTER_SERVER_SSH_PORT root@$MASTER_SERVER "IMGS2VIDEO_CFGFILE=/opt/imgs2video/${NAME}.i2v nohup /opt/imgs2video/imgs2video/build_all_from_hours.sh &> /opt/imgs2video/$NAME/log/build_all__`date +%F_%H`.log &"
+ssh -p $MASTER_SERVER_SSH_PORT root@$MASTER_SERVER "IMGS2VIDEO_CFGFILE=/opt/imgs2video/${NAME}.i2v nohup /opt/imgs2video/imgs2video/build_all_from_hours_and_remove_old.sh &> /opt/imgs2video/$NAME/log/build_all__`date +%F_%H`.log &"

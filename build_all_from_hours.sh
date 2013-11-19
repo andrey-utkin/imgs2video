@@ -17,8 +17,6 @@ mkdir -p $DAILY_VIDEO_DIR
 
 `dirname $0`/fix_hourvideo_mtime.sh $VIDEODIR/*
 
-`dirname $0`/remove_old.sh
-
 DATE=`date +%F`
 HOUR=`date +%H`
 CAT_LOGFILE=$LOG_DIR/cat__${DATE}_${HOUR}.log
