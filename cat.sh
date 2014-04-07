@@ -26,9 +26,25 @@ echo Catlist at cat.sh args: $CATLIST
 CATLISTFILE=`mktemp`
 for x in $CATLIST
 do
+    echo "# `ls -l $x`" >> $CATLISTFILE
     echo "file `readlink -f $x`" >> $CATLISTFILE
 done
-$FFMPEG -f concat -i $CATLISTFILE -vcodec copy -movflags faststart -y $DSTFILE
-RET=$?
+
+DSTFILE_SRC=${DSTFILE}.src
+RET=0
+if [[ ! -e $DSTFILE_SRC ]] || [[ `wc -l $DSTFILE_SRC | awk '{ print $1 }'` -lt `wc -l $CATLISTFILE | awk '{ print $1 }'` ]] || ! diff $CATLISTFILE $DSTFILE_SRC
+then
+    $FFMPEG -f concat -i $CATLISTFILE -vcodec copy -movflags faststart -y $DSTFILE
+    RET=$?
+    if [[ $RET == 0 ]]
+    then
+        cp $CATLISTFILE $DSTFILE_SRC
+    else
+        echo 'Concatenation failed'
+    fi
+else
+    echo 'Concatenation skipped due to source files matching'
+fi
+
 rm $CATLISTFILE
 exit $RET

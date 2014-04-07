@@ -22,10 +22,7 @@ do
     for OFMT in $OFMTS
     do
         THAT_DAY_VIDEO=$DAILY_VIDEO_DIR/${OLD_DATE}.${OFMT}
-        if ! [[ -e $THAT_DAY_VIDEO ]]
-        then
-            `dirname $0`/cat.sh $THAT_DAY_VIDEO -- $VIDEODIR/${OLD_DATE}_*.${OFMT}
-        fi
+        `dirname $0`/cat.sh $THAT_DAY_VIDEO -- $VIDEODIR/${OLD_DATE}_*.${OFMT}
     done
 done
 
