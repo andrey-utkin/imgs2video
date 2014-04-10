@@ -26,8 +26,9 @@ echo Catlist at cat.sh args: $CATLIST
 CATLISTFILE=`mktemp`
 for x in $CATLIST
 do
+    x=`readlink -f $x`
     echo "# `ls -l $x`" >> $CATLISTFILE
-    echo "file `readlink -f $x`" >> $CATLISTFILE
+    echo "file $x" >> $CATLISTFILE
 done
 
 DSTFILE_SRC=${DSTFILE}.src
