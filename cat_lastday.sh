@@ -47,5 +47,10 @@ do
         rm ${DAYFILE}_part.$OFMT
         exit 1
     fi
-    mv ${DAYFILE}_part.$OFMT ${DAYFILE}.$OFMT
+
+# temporary _part file will be absent if .src matches with previous
+    if [[ -e ${DAYFILE}_part.$OFMT ]]
+    then
+        mv ${DAYFILE}_part.$OFMT ${DAYFILE}.$OFMT
+    fi
 done
