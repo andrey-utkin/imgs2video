@@ -4,4 +4,4 @@ pushd external/ffmpeg
 cmake .
 make
 popd
-cp external/ffmpeg/install/bin/ffmpeg .
+cp external/ffmpeg/install/bin/{ffmpeg,ffprobe} .

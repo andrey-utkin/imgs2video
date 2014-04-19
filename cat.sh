@@ -28,7 +28,12 @@ for x in $CATLIST
 do
     x=`readlink -f $x`
     echo "# `ls -l $x`" >> $CATLISTFILE
-    echo "file $x" >> $CATLISTFILE
+    if $FFPROBE $x
+    then
+        echo "file $x" >> $CATLISTFILE
+    else
+        echo "# BROKEN, EXCLUDED" >> $CATLISTFILE
+    fi
 done
 
 DSTFILE_SRC=${DSTFILE}.src
