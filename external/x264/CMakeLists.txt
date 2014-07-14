@@ -10,7 +10,7 @@ if (${DEBUG})
 endif(${DEBUG})
 
 ExternalProject_Add(x264_local
-    URL http://download.videolan.org/pub/videolan/x264/snapshots/x264-snapshot-20130217-2245-stable.tar.bz2
+    URL http://download.videolan.org/pub/videolan/x264/snapshots/x264-snapshot-20140713-2245-stable.tar.bz2
     BUILD_IN_SOURCE 1
     CONFIGURE_COMMAND ./configure ${CONFIGURE_OPTIONS}
     BUILD_COMMAND make
