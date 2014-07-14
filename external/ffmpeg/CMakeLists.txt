@@ -17,8 +17,8 @@ else (${DEBUG})
 endif (${DEBUG})
 
 set(FFMPEG_EXTRA_LIBS
-    "${CMAKE_CURRENT_SOURCE_DIR}/../x264/install/lib/libx264.a")
-set(FFMPEG_EXTRA_LDFLAGS "-L${CMAKE_CURRENT_SOURCE_DIR}/../x264/install/lib ")
+    "${CMAKE_CURRENT_SOURCE_DIR}/../x264/install/lib/libx264.a -ldl")
+set(FFMPEG_EXTRA_LDFLAGS " -L${CMAKE_CURRENT_SOURCE_DIR}/../x264/install/lib -ldl")
 
 list (APPEND FFMPEG_CONFIGURE_OPTIONS
 --enable-ffmpeg
