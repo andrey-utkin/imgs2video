@@ -36,7 +36,7 @@ do
     if [[ -z "$CATLIST" ]]
     then
         echo Nothing to concatenate, no videos in last 24h
-        exit 0
+        continue
     fi
 
     CATLIST=`ls -rt $CATLIST`
@@ -47,7 +47,7 @@ do
     then
         echo "ERROR: cat.sh ${DAYFILE}_part.$OFMT failed (from cat_lastday.sh)"
         rm ${DAYFILE}_part.$OFMT
-        exit 1
+        continue
     fi
 
 # temporary _part file will be absent if .src matches with previous
