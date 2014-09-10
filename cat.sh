@@ -40,7 +40,7 @@ DSTFILE_SRC=${DSTFILE}.src
 RET=0
 if [[ ! -e $DSTFILE_SRC ]] \
        || ( [[ `wc -l $DSTFILE_SRC | awk '{ print $1 }'` -le `wc -l $CATLISTFILE | awk '{ print $1 }'` ]] \
-               || [[ -n "$CAT_EVEN_IF_SHORTER" ]] ) && ! diff $CATLISTFILE $DSTFILE_SRC
+               || [[ -n "$CAT_EVEN_IF_SHORTER" ]] ) && ! diff -Nurd $DSTFILE_SRC $CATLISTFILE
 then
     $FFMPEG -f concat -i $CATLISTFILE -vcodec copy -movflags faststart -y $DSTFILE
     RET=$?
