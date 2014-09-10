@@ -23,6 +23,10 @@ do
     do
         THAT_DAY_VIDEO=$DAILY_VIDEO_DIR/${OLD_DATE}.${OFMT}
         `dirname $0`/cat.sh $THAT_DAY_VIDEO -- $VIDEODIR/${OLD_DATE}_*.${OFMT}
+        if [[ $? != 0 ]]
+        then
+            echo "ERROR: cat.sh $THAT_DAY_VIDEO failed"
+        fi
     done
 done
 

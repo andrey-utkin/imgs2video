@@ -48,7 +48,7 @@ then
     then
         cp $CATLISTFILE $DSTFILE_SRC
     else
-        echo 'Concatenation failed'
+        echo "ERROR: Concatenation of $DSTFILE failed"
     fi
 else
     echo 'Concatenation skipped due to source files matching'

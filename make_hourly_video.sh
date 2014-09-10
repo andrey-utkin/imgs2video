@@ -55,7 +55,7 @@ do
     `dirname $0`/assemble_and_compress.sh $DIR $DSTFILE $FILTER
     if [[ $? -ne 0 ]]
     then
-        echo "Assembling failed"
+        echo "ERROR: failure of assemble_and_compress.sh $DIR $DSTFILE $FILTER"
         exit 1
     fi
     echo "Assembling succeed"

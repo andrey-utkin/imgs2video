@@ -46,6 +46,7 @@ $FFMPEG \
 RET=$?
 if [[ $RET != 0 ]]
 then
+    echo "ERROR: Making $OUTFILE of $IMGDIR failed"
     rm $OUTFILE
 fi
 exit $RET

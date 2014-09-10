@@ -45,6 +45,7 @@ do
     `dirname $0`/cat.sh ${DAYFILE}_part.$OFMT -- $CATLIST
     if [[ $? != 0 ]]
     then
+        echo "ERROR: cat.sh ${DAYFILE}_part.$OFMT failed (from cat_lastday.sh)"
         rm ${DAYFILE}_part.$OFMT
         exit 1
     fi

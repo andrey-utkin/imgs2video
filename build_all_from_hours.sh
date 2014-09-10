@@ -23,7 +23,7 @@ CAT_LOGFILE=$LOG_DIR/cat__${DATE}_${HOUR}.log
 `dirname $0`/cat_lastday.sh &> $CAT_LOGFILE
 if [[ $? != 0 ]]
 then
-    echo "Concatenation failed"
+    echo "ERROR: Concatenation of last_day failed"
     if [[ -n "$NOTIF_EMAILS" ]]
     then
       cat $CAT_LOGFILE | mail -s "Video concatenation failed on $NAME" -a $CAT_LOGFILE $NOTIF_EMAILS

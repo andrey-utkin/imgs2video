@@ -41,6 +41,7 @@ function hourly {
         then
             if [[ -n "$NOTIF_EMAILS" ]]
             then
+                echo "ERROR: make_hourly_video.sh $DIR failed"
                 cat $ASSEMBLE_LOGFILE | mail -s "Hourly video assembling failed on $NAME" -a $ASSEMBLE_LOGFILE $NOTIF_EMAILS
             fi
         fi
@@ -54,7 +55,7 @@ function hourly {
         `dirname $0`/cat_lastday.sh &> $CAT_LOGFILE
         if [[ $? != 0 ]]
         then
-            echo "Concatenation failed"
+            echo "ERROR: cat_lastday.sh failed (DATE=$DATE, HOUR=$HOUR)"
             if [[ -n "$NOTIF_EMAILS" ]]
             then
               cat $CAT_LOGFILE | mail -s "Video concatenation failed on $NAME" -a $CAT_LOGFILE $NOTIF_EMAILS
