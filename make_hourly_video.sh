@@ -48,16 +48,20 @@ do
     export OFMT
     export VIDEO_ENCODING_OPTS=${VIDEO_ENCODING_OPTS_ARRAY[$OFMT]}
     DSTFILE=$VIDEODIR/${DATE}_${HOUR}.$OFMT
+    VIDEODIR_TMP="$VIDEODIR/../video_hours_tmp"
+    mkdir -p "$VIDEODIR_TMP"
+    DSTFILE_TMP="$VIDEODIR_TMP/${DATE}_${HOUR}.$OFMT"
     if [[ -e $DSTFILE ]]
     then
         continue
     fi
-    `dirname $0`/assemble_and_compress.sh $DIR $DSTFILE $FILTER
+    `dirname $0`/assemble_and_compress.sh $DIR $DSTFILE_TMP $FILTER
     if [[ $? -ne 0 ]]
     then
-        echo "ERROR: failure of assemble_and_compress.sh $DIR $DSTFILE $FILTER"
+        echo "ERROR: failure of assemble_and_compress.sh $DIR $DSTFILE_TMP $FILTER"
         exit 1
     fi
     echo "Assembling succeed"
+    mv "$DSTFILE_TMP" "$DSTFILE"
     touch --date="$DATE $HOUR:00:00" $DSTFILE
 done
