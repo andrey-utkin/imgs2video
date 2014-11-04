@@ -2,6 +2,8 @@
 
 RSYNC_LIST_FILE="$SRC_DIR/hv_sync.list"
 
+RSYNC_OPTS="$RSYNC_OPTS --size-only --partial --partial-dir=.rsync-partial"
+
 function hv_and_log_sync {
     while true
     do
