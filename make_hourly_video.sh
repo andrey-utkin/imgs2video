@@ -62,6 +62,6 @@ do
         exit 1
     fi
     echo "Assembling succeed"
+    touch --date="$DATE $HOUR:00:00" "$DSTFILE_TMP"
     mv "$DSTFILE_TMP" "$DSTFILE"
-    touch --date="$DATE $HOUR:00:00" $DSTFILE
 done
