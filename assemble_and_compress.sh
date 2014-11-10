@@ -33,7 +33,6 @@ trap cleanup INT TERM QUIT
 
 echo Making $OUTFILE of $IMGDIR
 $FFMPEG \
-        -video_size ${IN_WIDTH}x${IN_HEIGHT} \
         -err_detect explode \
         -f image2 \
         -ts_from_file 1 \

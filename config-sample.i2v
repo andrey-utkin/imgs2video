@@ -8,8 +8,6 @@ FFPROBE=ffprobe
 BITRATE=2000000
 SPEEDUP=240
 FRAMERATE=50
-IN_WIDTH=1280 # it is mandatory to set here INPUT image resolution
-IN_HEIGHT=720
 declare -A VIDEO_ENCODING_OPTS_ARRAY
 VIDEO_ENCODING_OPTS_ARRAY["mp4"]=" -vcodec libx264 -b:v $BITRATE -bt:v $(( BITRATE / 10 )) -preset medium -movflags faststart "
 VIDEO_ENCODING_OPTS_ARRAY["webm"]=" -vcodec vp8 -b:v $BITRATE -bt:v $(( BITRATE / 10 )) "
