@@ -45,7 +45,7 @@ function hv_and_log_sync {
             RET=1
             while true
             do
-                rsync -e "$RSYNC_E" $RSYNC_OPTS --archive --partial --verbose "$SRC_DIR/$CURRENT_FILE" "$DST_URI/video_hours"
+                rsync -e "$RSYNC_E" $RSYNC_OPTS --archive --partial --verbose "$SRC_DIR/$CURRENT_FILE" "$DST_URI/video_hours/"
                 # On success move on to next file;
                 if [[ $? == 0 ]]
                 then
