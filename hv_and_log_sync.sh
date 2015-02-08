@@ -53,7 +53,9 @@ function hv_and_log_sync {
                 fi
 
                 # ...If newer file appears in video_hours (the dir itself gets modified, as checked here), rebuild the list and start from the beginning
-                if [[ `find "$SRC_DIR/video_hours" -maxdepth 0 -newer $MOST_RECENT_VIDEO_HOURS_FILE | wc -l` != 0 ]]
+		# Also restart if $MOST_RECENT_VIDEO_HOURS_FILE disappears
+                if [[ ! -e $MOST_RECENT_VIDEO_HOURS_FILE ]] \
+			|| [[ `find "$SRC_DIR/video_hours" -maxdepth 0 -newer $MOST_RECENT_VIDEO_HOURS_FILE | wc -l` != 0 ]]
                 then
                     break 2
                 fi
