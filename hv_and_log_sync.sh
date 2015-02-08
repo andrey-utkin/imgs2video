@@ -11,6 +11,7 @@ function hv_and_log_sync {
         # Sort this list, most recent modification time first
         # Used naming scheme allows simple lexicographical sorting to work as mtime sort
         touch "${RSYNC_LIST_FILE}.timestamp"
+        sleep 1
         rsync -e "$RSYNC_E" $RSYNC_OPTS --archive --dry-run --verbose "$SRC_DIR/video_hours" "$DST_URI" | egrep 'video_hours/.+' | sort --reverse > "$RSYNC_LIST_FILE"
         if [[ $? != 0 ]]
         then
@@ -45,6 +46,7 @@ function hv_and_log_sync {
             RET=1
             while true
             do
+                sleep 1
                 rsync -e "$RSYNC_E" $RSYNC_OPTS --archive --partial --verbose "$SRC_DIR/$CURRENT_FILE" "$DST_URI/video_hours/"
                 # On success move on to next file;
                 if [[ $? == 0 ]]
@@ -66,6 +68,7 @@ function hv_and_log_sync {
         # Retry only if rsync exited with failure and video_hours/ doesn't have newer files
         while true
         do
+            sleep 1
             rsync -e "$RSYNC_E" $RSYNC_OPTS --archive --partial --verbose "$SRC_DIR/log" "$DST_URI"
             if [[ $? == 0 ]] || [[ `find "$SRC_DIR/video_hours" -maxdepth 0 -newer $MOST_RECENT_VIDEO_HOURS_FILE | wc -l` != 0 ]]
             then
