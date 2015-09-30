@@ -1,5 +1,8 @@
 imgs2video
 This toolkit is dedicated to continuous generation of timelapse video.
 Use build.sh to build.
+To make it all build successfully, run such a command previously (for DEB-based distros):
+apt-get install git yasm cmake gcc g++ build-essential libvpx1 libvpx-dev
+
 The launch point is daemon.sh, it takes a config file.
 Config file template is in config-sample.i2v
