@@ -5,8 +5,15 @@ RSYNC_LIST_FILE="$SRC_DIR/hv_sync.list"
 RSYNC_OPTS="$RSYNC_OPTS --size-only --partial --partial-dir=.rsync-partial"
 
 function hv_and_log_sync {
+    if [[ -z "$DST_URI" ]]
+    then
+	    echo "DST_URI not set, aborting" >&2
+	    exit
+    fi
+
     while true
     do
+        sleep 60  # give some rest to weak net channels
         # Get a list of files to sync in video_hours/ with --dry-run, on failure `continue` (go to next lap)
         # Sort this list, most recent modification time first
         # Used naming scheme allows simple lexicographical sorting to work as mtime sort

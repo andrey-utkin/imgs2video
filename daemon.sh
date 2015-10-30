@@ -76,15 +76,15 @@ function hourly {
 PREV_LAP_HOUR='unknown'
 PREV_LAP_DAY='unknown'
 
+if [[ "$HV_AND_LOG_SYNC" == "yes" ]]
+then
+    echo "Starting infinite hourly_video/ and log/ sync process in this daemon instance"
+    source `dirname $0`/hv_and_log_sync.sh
+    hv_and_log_sync &
+fi
+
 while true
 do
-    if [[ "$HV_AND_LOG_SYNC" == "yes" ]]
-    then
-        echo "Starting infinite hourly_video/ and log/ sync process in this daemon instance"
-        source `dirname $0`/hv_and_log_sync.sh
-        hv_and_log_sync &
-    fi
-
     DATE=`date +'%F %H %M%S'`
     DAY=`echo $DATE | awk '{ printf $1 }'`
     HOUR=`echo $DATE | awk '{ printf $2 }'`
