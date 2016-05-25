@@ -40,3 +40,24 @@ While editing the config, pay attention to the following:
 * If your camera is local and returns the image very fast, you probably want to slow down the retrieval process by setting `AFTER_GET_IMAGE_HOOK` to something like `sleep 5`
 
 * As explained in config, uncomment `HV_AND_LOG_SYNC=yes` and edit that config section accordingly to enable automatic syncing of videos and logs onto another server by means of rsync over SSH. Don't forget to set up passphrase-less SSH login by public key from the local server to the remote one.
+
+When you are done editing config, run the daemon:
+
+```
+./daemon.sh config.i2v
+```
+
+You may want to do it using GNU Screen or Tmux using such a script (implies that cameras files are in `/opt/imgs2video`, and imgs2video scripts are in `/opt/imgs2video/imgs2video`):
+
+```bash
+#!/bin/bash
+if [[ $# -ne 1 ]]
+then
+  echo "Usage: `basename $0` <camera name>"
+  exit 1
+fi
+echo "Launching imgs2video daemon for camera $1"
+pushd /opt/imgs2video
+screen -d -m -S $1 bash -c "imgs2video/daemon.sh ${1}.i2v; bash -i" &
+popd
+```
