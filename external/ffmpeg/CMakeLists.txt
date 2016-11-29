@@ -83,7 +83,7 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../x264 ${CMAKE_CURRENT_SOURCE_DIR}
 
 ExternalProject_Add(ffmpeg-local
   DEPENDS x264_local
-  URL http://ffmpeg.org/releases/ffmpeg-3.0.2.tar.xz
+  URL http://ffmpeg.org/releases/ffmpeg-3.2.1.tar.xz
   BUILD_IN_SOURCE 1
   CONFIGURE_COMMAND ./configure ${FFMPEG_CONFIGURE_OPTIONS}
   )
